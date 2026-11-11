@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Velopack;
 using Velopack.Sources;
@@ -19,6 +19,15 @@ internal static class VelopackUpdater
     /// <returns>更新管理器。</returns>
     public static UpdateManager Create()
     {
+        // 开发调试用：把来源指向本地打包目录，就能离线复现整条更新链路。
+        string? overrideSource = Environment.GetEnvironmentVariable("HDCMIRROR_UPDATE_SOURCE");
+        if (!string.IsNullOrWhiteSpace(overrideSource))
+        {
+            return overrideSource.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                ? new UpdateManager(new SimpleWebSource(overrideSource))
+                : new UpdateManager(overrideSource);
+        }
+
         var source = new GithubSource(
             repoUrl: $"https://github.com/{UpdateService.RepoOwner}/{UpdateService.RepoName}",
             accessToken: null,

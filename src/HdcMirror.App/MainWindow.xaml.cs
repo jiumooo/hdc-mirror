@@ -1003,7 +1003,7 @@ public partial class MainWindow
                     catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
                     {
                         progressWindow.Close();
-                        _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.Message);
+                        _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.ToString());
                         ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
                         return;
                     }
@@ -1082,6 +1082,7 @@ public partial class MainWindow
                 Strings.Upd_Title,
                 string.Format(CultureInfo.CurrentCulture, Strings.Upd_AvailableFormat, version),
                 Strings.Upd_InstallNow);
+            _log.Write(LogLevel.Info, "App.Update", "用户确认安装=" + install);
             if (!install)
             {
                 return;
@@ -1105,7 +1106,7 @@ public partial class MainWindow
             catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
             {
                 progressWindow.Close();
-                _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.Message);
+                _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.ToString());
                 ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
                 return;
             }
