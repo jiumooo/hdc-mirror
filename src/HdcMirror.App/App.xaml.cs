@@ -40,6 +40,16 @@ public partial class App : Application
     /// <inheritdoc />
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Velopack 安装钩子：安装/更新/卸载时的首启清理必须最先跑，失败也不能拖垮启动。
+        try
+        {
+            Velopack.VelopackApp.Build().Run();
+        }
+        catch (Exception)
+        {
+            // 未安装（直接跑 Debug 输出）时会抛 NotInstalled 类异常，属正常，忽略。
+        }
+
         base.OnStartup(e);
 
         // 必须在任何界面代码之前装好：M0 第一次启动时因导航时机问题在构造函数里

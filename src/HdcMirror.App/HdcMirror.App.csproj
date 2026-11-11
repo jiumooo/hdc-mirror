@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -16,6 +16,8 @@
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <!-- 2.4.1 起只发 net10.0-windows / net462，net8 会落到 .NET Framework 资产并报 NU1701；2.3.2 是最后一个带 net8.0-windows 的稳定版 -->
     <PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.2" />
+    <!-- 安装包与增量更新：vpk 打包要求主程序调用 VelopackApp.Build().Run() -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,21 +38,27 @@
 
   <!-- 音频子进程 TFM 是 net8.0-windows10.0.19041.0，不能被 net8.0-windows 的工程直接引用；
        用 MSBuild 任务显式先编它，再用下面的 Copy 目标搬产物。 -->
+  <!--
+    音频接收器是独立进程（只有 net8.0-windows10.0.19041.0 能用 WinRT 的 AudioPlaybackConnection），
+    所以不能走 ProjectReference，改为构建时按当前 RID 编译一遍并把产物抄到 <输出>\audio\。
+  -->
   <Target Name="BuildAudioSink" BeforeTargets="Build">
     <MSBuild
       Projects="$(MSBuildThisFileDirectory)..\HdcMirror.Audio\HdcMirror.Audio.csproj"
       Targets="Build"
-      Properties="Configuration=$(Configuration)" />
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
   </Target>
 
-  <!--
-    音频接收器是独立进程（net8.0-windows10.0.19041.0 才能用 WinRT 的 AudioPlaybackConnection），
-    这里把它的整套输出（exe/dll/runtimeconfig/WinRT 运行时）抄到 <输出>\audio\，
-    主程序按 audio\HdcMirror.Audio.exe 拉起。
-  -->
   <Target Name="CopyAudioSink" AfterTargets="Build">
-    <ItemGroup>
-      <_AudioSinkFiles Include="$(MSBuildThisFileDirectory)..\HdcMirror.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\**\*.*" />
+    <PropertyGroup>
+      <_AudioSinkBin>$(MSBuildThisFileDirectory)..\HdcMirror.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\</_AudioSinkBin>
+      <_AudioSinkBinRid>$(_AudioSinkBin)$(RuntimeIdentifier)\</_AudioSinkBinRid>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == ''">
+      <_AudioSinkFiles Include="$(_AudioSinkBin)**\*.*" Exclude="$(_AudioSinkBin)**\*.pdb" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+      <_AudioSinkFiles Include="$(_AudioSinkBinRid)**\*.*" Exclude="$(_AudioSinkBinRid)**\*.pdb" />
     </ItemGroup>
     <Copy
       SourceFiles="@(_AudioSinkFiles)"
