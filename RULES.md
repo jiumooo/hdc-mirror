@@ -1,4 +1,4 @@
-﻿# RULES · 本仓库的发布纪律与隐私红线
+# RULES · 本仓库的发布纪律与隐私红线
 
 > 适用对象：所有参与本仓库的人 —— 包括维护者本人、协作者，以及任何 AI 助手。
 > 本文件随仓库公开发布，因此它自身不含任何真实设备信息。
@@ -170,3 +170,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\privacy-scan.ps1 -Fix
 - AssemblyName 必须是 HdcMirror，产物为 HdcMirror.exe。
 - RootNamespace 可保留工程结构名（内部不可见），但任何用户可见位置都不许带 App。
 - 提交前自检：Select-String -Path src\**\*.csproj,src\**\Resources.resx -Pattern 'HdcMirror\.App' 只允许命中 RootNamespace。
+## 推送通道（2026-11-11 实测）
+
+本机 `github.com:443` 不通（`git push` 报 `Failed to connect ... port 443` / `Recv failure: Connection was reset`），
+但 `api.github.com:443`、`ssh.github.com:443`、`uploads.github.com:443` 都通。
+
+因此发布流程如下，不要直接 `git push`：
+
+1. 本地 `git add` + `git commit`（历史照常记录在本地）；
+2. 用 `tools\gh-api-push.ps1` 把 **HEAD 的树**整体上传成远端一次提交：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\gh-api-push.ps1 `
+  -Repo jiumooo/hdc-mirror -Message "提交说明" -ParentSha <远端当前 main 的 sha>
+```
+
+- `-ParentSha` 取 `gh api repos/jiumooo/hdc-mirror/git/ref/heads/main --jq .object.sha`；
+- 空仓库第一次必须先 `gh api --method PUT .../contents/README.md` 造一个初始提交，否则建 blob 会 409；
+- 脚本用 `git -c core.quotepath=false ls-tree` 取路径，中文文件名不会变成八进制转义；
+- `gh release upload` 走 `uploads.github.com`，正常可用。
