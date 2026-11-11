@@ -966,6 +966,16 @@ public partial class MainWindow
             return;
         }
 
+        await RunManualUpdateAsync(manual).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// 手动更新通道：直接下载 Setup 安装包再交给系统安装。
+    /// Velopack 通道任何一步失败时也会退到这里，保证「总能更新」。
+    /// </summary>
+    /// <param name="manual">是否由用户主动触发。</param>
+    private async Task RunManualUpdateAsync(bool manual)
+    {
         UpdateCheckResult result = await UpdateService.CheckAsync().ConfigureAwait(true);
         _log.Write(LogLevel.Info, "App.Update", $"检查更新：{result.Status} 版本={result.Version ?? "-"} 详情={result.Detail ?? "-"}");
 
@@ -1105,9 +1115,10 @@ public partial class MainWindow
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
             {
+                // 增量通道失手时退回「下载 Setup」，用户仍然能拿到新版本。
                 progressWindow.Close();
-                _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.ToString());
-                ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
+                _log.Write(LogLevel.Warn, "App.Update", "增量下载失败，退回安装包通道：" + ex);
+                await RunManualUpdateAsync(manual).ConfigureAwait(true);
                 return;
             }
 
@@ -1118,9 +1129,10 @@ public partial class MainWindow
             // 这一句会替换文件并重新拉起本程序，后面不要再写任何界面代码。
             manager.ApplyUpdatesAndRestart(info);
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            _log.Write(LogLevel.Warn, "App.Update", "Velopack 更新失败：" + ex.Message);
+            // 更新通道任何一项失败都不能把程序带走：记录全文，用户可见一行提示。
+            _log.Write(LogLevel.Warn, "App.Update", "Velopack 更新失败：" + ex.ToString());
             if (manual)
             {
                 ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_FailedFormat, ex.Message));

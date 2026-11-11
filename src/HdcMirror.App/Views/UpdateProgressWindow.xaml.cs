@@ -46,25 +46,33 @@ public partial class UpdateProgressWindow : Window
     /// <param name="percent">0~100。</param>
     public void ReportPercent(int percent)
     {
-        // Velopack 在下载线程上直接回调，不能在这里碰控件，统一转回 UI 线程。
-        if (!Dispatcher.CheckAccess())
+        // 进度回调来自下载线程，且绝不允许因为界面动作失败而中断下载：
+        // 先切回 UI 线程，再把任何界面异常吞掉，只保留「下载本身」的错误语义。
+        try
         {
-            Dispatcher.BeginInvoke(new Action<int>(ReportPercent), percent);
-            return;
-        }
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<int>(ReportPercent), percent);
+                return;
+            }
 
-        if (Canceled)
+            if (Canceled)
+            {
+                return;
+            }
+
+            int value = Math.Clamp(percent, 0, 100);
+            Bar.Value = value;
+            DetailText.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                Strings.Upd_ProgressOnlyPercentFormat,
+                value);
+            SpeedText.Text = string.Empty;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or TaskCanceledException or ObjectDisposedException)
         {
-            return;
+            // 进度条更新失败不影响下载与安装。
         }
-
-        int value = Math.Clamp(percent, 0, 100);
-        Bar.Value = value;
-        DetailText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            Strings.Upd_ProgressOnlyPercentFormat,
-            value);
-        SpeedText.Text = string.Empty;
     }
 
     /// <summary>把一次字节级进度快照画到界面上。</summary>
