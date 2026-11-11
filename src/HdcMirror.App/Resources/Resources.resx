@@ -195,7 +195,7 @@
     <value>扫码请我喝杯咖啡，你的名字会出现在这里（可匿名）</value>
   </data>
   <data name="Upd_Checking" xml:space="preserve">
-    <value>检查更新将在后续版本接入</value>
+    <value>正在检查更新…</value>
   </data>
   <data name="Link_Docs" xml:space="preserve">
     <value>https://github.com/jiumooo/hdc-mirror#readme</value>
@@ -604,5 +604,44 @@
   <data name="Ui_IdleHint" xml:space="preserve">
     <value>设备已连接，正在准备画面…</value>
     <comment>未开始镜像且拿不到锁屏画面/上一帧时的提示</comment>
+  </data>
+  <data name="Upd_ProgressTitle" xml:space="preserve">
+    <value>下载更新</value>
+  </data>
+  <data name="Upd_ProgressFormat" xml:space="preserve">
+    <value>{0} / {1}（{2}%）</value>
+  </data>
+  <data name="Upd_SpeedFormat" xml:space="preserve">
+    <value>{0}/s · 剩余 {1}</value>
+  </data>
+  <data name="Upd_RemainUnknown" xml:space="preserve">
+    <value>正在估算…</value>
+  </data>
+  <data name="Upd_ResumeFormat" xml:space="preserve">
+    <value>接着上次已下载的 {0} 继续</value>
+  </data>
+  <data name="Upd_Preparing" xml:space="preserve">
+    <value>正在准备安装程序…</value>
+  </data>
+  <data name="Upd_Launching" xml:space="preserve">
+    <value>正在启动安装程序，本程序即将退出…</value>
+  </data>
+  <data name="Upd_StartDownload" xml:space="preserve">
+    <value>开始下载…</value>
+  </data>
+  <data name="Upd_CancelHint" xml:space="preserve">
+    <value>取消后已保留已下载的部分，下次接着下</value>
+  </data>
+  <data name="Upd_Restarting" xml:space="preserve">
+    <value>正在安装，完成后自动重启…</value>
+  </data>
+  <data name="Upd_ProgressPercentFormat" xml:space="preserve">
+    <value>{0} / {1} · {2}%</value>
+  </data>
+  <data name="Upd_ProgressOnlyPercentFormat" xml:space="preserve">
+    <value>已下载 {0}%</value>
+  </data>
+  <data name="Upd_ResumeNoticeFormat" xml:space="preserve">
+    <value>接着上次已下载的 {0} 继续；中途取消或断网都会保留</value>
   </data>
 </root>

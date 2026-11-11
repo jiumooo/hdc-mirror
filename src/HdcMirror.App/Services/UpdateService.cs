@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading;
@@ -63,12 +64,62 @@ public static class UpdateService
 
     private static readonly HttpClient Client = CreateClient();
 
+    /// <summary>
+    /// 下载专用客户端：安装包约 90 MB，用检查更新那个 15 秒超时会在慢网下必失败，
+    /// 这里不设总超时，靠调用方取消 + 单次读超时兜底。
+    /// </summary>
+    private static readonly HttpClient DownloadClient = CreateDownloadClient();
+
+    private static HttpClient CreateDownloadClient()
+    {
+        var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("HdcMirror", "1.0"));
+        return client;
+    }
+
     /// <summary>仓库是否已配置（占位符未替换时视为未配置）。</summary>
     public static bool IsConfigured => !string.Equals(RepoOwner, "OWNER", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>当前程序版本号。</summary>
-    public static Version CurrentVersion =>
-        Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
+    /// <summary>
+    /// 当前程序版本号。优先读 <see cref="AssemblyInformationalVersionAttribute"/>，
+    /// 它由 <c>Directory.Build.props</c> 的 <c>&lt;Version&gt;</c> 直接派生，带 <c>-beta</c> 之类的后缀也能正确截断；
+    /// 拿不到才退回程序集版本（后者可能被手写的 &lt;AssemblyVersion&gt; 拖住，别再依赖它）。
+    /// </summary>
+    public static Version CurrentVersion
+    {
+        get
+        {
+            Assembly? assembly = Assembly.GetEntryAssembly();
+
+            string? informational = assembly?
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(informational))
+            {
+                string text = informational;
+
+                int plus = text.IndexOf('+', StringComparison.Ordinal);
+                if (plus >= 0)
+                {
+                    text = text[..plus];
+                }
+
+                int dash = text.IndexOf('-', StringComparison.Ordinal);
+                if (dash >= 0)
+                {
+                    text = text[..dash];
+                }
+
+                if (Version.TryParse(text, out Version? parsed) && parsed is not null)
+                {
+                    return parsed;
+                }
+            }
+
+            return assembly?.GetName().Version ?? new Version(0, 0, 0);
+        }
+    }
 
     /// <summary>Release 页面地址，用于「打不开更新时手动去下载」。</summary>
     public static string ReleasesPageUrl => $"https://github.com/{RepoOwner}/{RepoName}/releases/latest";
@@ -191,13 +242,29 @@ public static class UpdateService
         }
     }
 
+    /// <summary>下载进度快照。</summary>
+    /// <param name="Received">已接收字节数（含续传前已存在的部分）。</param>
+    /// <param name="Total">总字节数；服务器未给长度时为 0。</param>
+    /// <param name="BytesPerSecond">本次会话的平均速度，刚开始时为 0。</param>
+    /// <param name="ResumedFrom">续传起点；0 表示全新下载。</param>
+    public readonly record struct DownloadProgress(long Received, long Total, double BytesPerSecond, long ResumedFrom)
+    {
+        /// <summary>完成比例 0~1；总长未知时返回 0。</summary>
+        public double Fraction => Total > 0 ? Math.Clamp((double)Received / Total, 0, 1) : 0;
+    }
+
     /// <summary>
-    /// 下载安装包并启动它；调用方通常在返回值之后立刻退出程序。
-    /// 下载到 <c>%TEMP%\HdcMirror-update\</c>，文件名取自 URL。
+    /// 下载安装包并返回落盘路径。支持断点续传：
+    /// 未完成的下载留在 <c>&lt;文件&gt;.part</c>，下次调用带 <c>Range</c> 头接着下，
+    /// 服务器返回 206 就追加，返回 200（不支持 Range / 文件已变）就从头重下。
     /// </summary>
     /// <param name="downloadUrl">安装包地址。</param>
-    /// <param name="cancellationToken">取消标记。</param>
-    public static async Task<string> DownloadAsync(string downloadUrl, CancellationToken cancellationToken = default)
+    /// <param name="progress">进度回调，可能从后台线程触发。</param>
+    /// <param name="cancellationToken">取消标记；取消不会删除 .part，供下次续传。</param>
+    public static async Task<string> DownloadAsync(
+        string downloadUrl,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(downloadUrl))
         {
@@ -214,14 +281,92 @@ public static class UpdateService
         }
 
         string target = Path.Combine(directory, fileName);
-        using HttpResponseMessage response = await Client
-            .GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        string partial = target + ".part";
+
+        long resumedFrom = File.Exists(partial) ? new FileInfo(partial).Length : 0;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+        if (resumedFrom > 0)
+        {
+            request.Headers.Range = new RangeHeaderValue(resumedFrom, null);
+        }
+
+        using HttpResponseMessage response = await DownloadClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.RequestedRangeNotSatisfiable && resumedFrom > 0)
+        {
+            // 服务器说这个区间不存在：多半是 .part 已经和远端一样大（上次其实下完了）。
+            File.Move(partial, target, overwrite: true);
+            progress?.Report(new DownloadProgress(resumedFrom, resumedFrom, 0, resumedFrom));
+            return target;
+        }
+
         response.EnsureSuccessStatusCode();
 
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using FileStream destination = File.Create(target);
-        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+        bool append = resumedFrom > 0 && response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+        if (!append)
+        {
+            resumedFrom = 0;
+        }
+
+        long total = resumedFrom + (response.Content.Headers.ContentLength ?? 0);
+        long received = resumedFrom;
+
+        progress?.Report(new DownloadProgress(received, total, 0, resumedFrom));
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await using Stream source = await response.Content
+                .ReadAsStreamAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            await using (var destination = new FileStream(
+                partial,
+                append ? FileMode.Append : FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                81920,
+                useAsync: true))
+            {
+                byte[] buffer = new byte[81920];
+                int read;
+                while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    received += read;
+
+                    double seconds = clock.Elapsed.TotalSeconds;
+                    double speed = seconds > 0.25 ? (received - resumedFrom) / seconds : 0;
+                    progress?.Report(new DownloadProgress(received, total, speed, resumedFrom));
+                }
+
+                await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 取消时保留 .part，下次接着下。
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            // 断网 / 连接中断同样保留 .part，下次续传。
+            throw;
+        }
+
+        if (total > 0 && received < total)
+        {
+            throw new IOException(string.Format(
+                CultureInfo.InvariantCulture,
+                "下载不完整：{0} / {1} 字节",
+                received,
+                total));
+        }
+
+        File.Move(partial, target, overwrite: true);
         return target;
     }
 

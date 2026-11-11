@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using HdcMirror.App.Resources;
 using HdcMirror.App.Services;
+using Velopack;
 using HdcMirror.App.Video;
 using HdcMirror.App.Views;
 using HdcMirror.Core.Diagnostics;
@@ -958,6 +959,13 @@ public partial class MainWindow
             ShowStatus(Strings.Upd_Checking);
         }
 
+        // 通过安装包装好的用户走 Velopack：增量包、断点续传、替换文件与重启都由它负责。
+        if (VelopackUpdater.IsInstalled)
+        {
+            await CheckWithVelopackAsync(manual).ConfigureAwait(true);
+            return;
+        }
+
         UpdateCheckResult result = await UpdateService.CheckAsync().ConfigureAwait(true);
         _log.Write(LogLevel.Info, "App.Update", $"检查更新：{result.Status} 版本={result.Version ?? "-"} 详情={result.Detail ?? "-"}");
 
@@ -975,18 +983,47 @@ public partial class MainWindow
                         return;
                     }
 
-                    ShowStatus(Strings.Upd_Downloading);
+                    var progressWindow = new UpdateProgressWindow { Owner = this };
+                    progressWindow.Show();
+                    _log.Write(LogLevel.Info, "App.Update", "开始下载安装包：" + result.DownloadUrl);
+
+                    string path;
                     try
                     {
-                        string path = await UpdateService.DownloadAsync(result.DownloadUrl!).ConfigureAwait(true);
-                        _log.Write(LogLevel.Info, "App.Update", "安装包已下载：" + path);
-                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                        RequestExit();
+                        path = await UpdateService
+                            .DownloadAsync(result.DownloadUrl!, progressWindow.Progress, progressWindow.Token)
+                            .ConfigureAwait(true);
+                    }
+                    catch (OperationCanceledException ex)
+                    {
+                        progressWindow.Close();
+                        _log.Write(LogLevel.Info, "App.Update", "下载被取消（用户操作或连接中断）；已下载的分片保留，下次继续。" + ex.GetType().Name);
+                        return;
                     }
                     catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
                     {
+                        progressWindow.Close();
+                        _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.Message);
                         ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
+                        return;
                     }
+
+                    _log.Write(LogLevel.Info, "App.Update", "安装包已下载：" + path);
+                    progressWindow.SetPhase(Strings.Upd_Launching);
+
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                    }
+                    catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+                    {
+                        progressWindow.Close();
+                        ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
+                        return;
+                    }
+
+                    await Task.Delay(500).ConfigureAwait(true);
+                    RequestExit();
 
                     break;
                 }
@@ -1010,6 +1047,83 @@ public partial class MainWindow
             default:
                 ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_FailedFormat, result.Detail ?? "-"));
                 break;
+        }
+    }
+    /// <summary>
+    /// Velopack 通道：检查 → 确认 → 下载（带百分比进度、可取消、断点续传）→ 应用并自动重启。
+    /// 这条路径下用户看到的是一个进度窗口，装完自己回来，不需要再点安装包。
+    /// </summary>
+    /// <param name="manual">是否由用户主动触发。</param>
+    private async Task CheckWithVelopackAsync(bool manual)
+    {
+        try
+        {
+            UpdateManager manager = VelopackUpdater.Create();
+            UpdateInfo? info = await manager.CheckForUpdatesAsync().ConfigureAwait(true);
+
+            string version = info?.TargetFullRelease.Version.ToString() ?? "-";
+            _log.Write(
+                LogLevel.Info,
+                "App.Update",
+                string.Format(CultureInfo.InvariantCulture, "检查更新（Velopack）：{0} 版本={1}", info is null ? "UpToDate" : "Available", version));
+
+            if (info is null)
+            {
+                if (manual)
+                {
+                    ShowStatus(Strings.Upd_UpToDate);
+                }
+
+                return;
+            }
+
+            bool install = ConfirmWindow.Ask(
+                this,
+                Strings.Upd_Title,
+                string.Format(CultureInfo.CurrentCulture, Strings.Upd_AvailableFormat, version),
+                Strings.Upd_InstallNow);
+            if (!install)
+            {
+                return;
+            }
+
+            var progressWindow = new UpdateProgressWindow { Owner = this };
+            progressWindow.Show();
+
+            try
+            {
+                await manager
+                    .DownloadUpdatesAsync(info, progressWindow.ReportPercent, progressWindow.Token)
+                    .ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                progressWindow.Close();
+                _log.Write(LogLevel.Info, "App.Update", "用户取消下载；已下载的分片保留，下次继续。");
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
+            {
+                progressWindow.Close();
+                _log.Write(LogLevel.Warn, "App.Update", "下载失败：" + ex.Message);
+                ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_DownloadFailedFormat, ex.Message));
+                return;
+            }
+
+            progressWindow.SetPhase(Strings.Upd_Restarting);
+            _log.Write(LogLevel.Info, "App.Update", "下载完成，开始应用更新并重启。");
+            await Task.Delay(400).ConfigureAwait(true);
+
+            // 这一句会替换文件并重新拉起本程序，后面不要再写任何界面代码。
+            manager.ApplyUpdatesAndRestart(info);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException or UnauthorizedAccessException)
+        {
+            _log.Write(LogLevel.Warn, "App.Update", "Velopack 更新失败：" + ex.Message);
+            if (manual)
+            {
+                ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Upd_FailedFormat, ex.Message));
+            }
         }
     }
     private void OnMenuExitClick(object sender, RoutedEventArgs e) => RequestExit();

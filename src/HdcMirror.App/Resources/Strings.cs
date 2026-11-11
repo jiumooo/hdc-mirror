@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Resources;
 
 namespace HdcMirror.App.Resources;
@@ -440,4 +440,43 @@ public static class Strings
     public static string Ui_InfoTitle => Get(nameof(Ui_InfoTitle));
     /// <summary>界面文案 <c>Ui_IdleHint</c>：未开始镜像且没有背景图时的提示</summary>
     public static string Ui_IdleHint => Get(nameof(Ui_IdleHint));
+
+    /// <summary>界面文案 <c>Upd_ProgressTitle</c>：更新下载进度</summary>
+    public static string Upd_ProgressTitle => Get(nameof(Upd_ProgressTitle));
+
+    /// <summary>界面文案 <c>Upd_ProgressFormat</c>：更新下载进度</summary>
+    public static string Upd_ProgressFormat => Get(nameof(Upd_ProgressFormat));
+
+    /// <summary>界面文案 <c>Upd_SpeedFormat</c>：更新下载进度</summary>
+    public static string Upd_SpeedFormat => Get(nameof(Upd_SpeedFormat));
+
+    /// <summary>界面文案 <c>Upd_RemainUnknown</c>：更新下载进度</summary>
+    public static string Upd_RemainUnknown => Get(nameof(Upd_RemainUnknown));
+
+    /// <summary>界面文案 <c>Upd_ResumeFormat</c>：更新下载进度</summary>
+    public static string Upd_ResumeFormat => Get(nameof(Upd_ResumeFormat));
+
+    /// <summary>界面文案 <c>Upd_Preparing</c>：更新下载进度</summary>
+    public static string Upd_Preparing => Get(nameof(Upd_Preparing));
+
+    /// <summary>界面文案 <c>Upd_Launching</c>：更新下载进度</summary>
+    public static string Upd_Launching => Get(nameof(Upd_Launching));
+
+    /// <summary>界面文案 <c>Upd_StartDownload</c>：更新下载进度</summary>
+    public static string Upd_StartDownload => Get(nameof(Upd_StartDownload));
+
+    /// <summary>界面文案 <c>Upd_CancelHint</c>：更新下载进度</summary>
+    public static string Upd_CancelHint => Get(nameof(Upd_CancelHint));
+
+    /// <summary>界面文案 <c>Upd_Restarting</c>：更新下载进度</summary>
+    public static string Upd_Restarting => Get(nameof(Upd_Restarting));
+
+    /// <summary>界面文案 <c>Upd_ProgressPercentFormat</c>：更新下载进度</summary>
+    public static string Upd_ProgressPercentFormat => Get(nameof(Upd_ProgressPercentFormat));
+
+    /// <summary>界面文案 <c>Upd_ProgressOnlyPercentFormat</c>：更新下载进度</summary>
+    public static string Upd_ProgressOnlyPercentFormat => Get(nameof(Upd_ProgressOnlyPercentFormat));
+
+    /// <summary>界面文案 <c>Upd_ResumeNoticeFormat</c>：更新下载进度</summary>
+    public static string Upd_ResumeNoticeFormat => Get(nameof(Upd_ResumeNoticeFormat));
 }
