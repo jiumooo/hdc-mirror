@@ -1,0 +1,14 @@
+# samples-allowlist.txt —— samples\ 下允许入库的媒体文件白名单
+#
+# 默认情况下，pre-push-check.ps1 会把 samples\ 下所有
+# *.jpeg *.jpg *.png *.gif *.webp *.h264 *.h265 *.mp4 *.webm *.mkv
+# 判为「真实屏幕内容」并让检查失败。
+#
+# 只有当仓库所有者本人确认某个媒体文件已脱敏（无界面、无通知、无任何个人信息），
+# 才把它的文件名加到这里。一行一个，支持通配符（-like 语法）。
+#
+# 反例：为了通过检查而批量加白 —— 这等于把闸门关掉，属于违规变更。
+#
+# 示例（取消注释前必须先确认）：
+# golden_mirror_pattern.h264
+# fingerprint_*.png

@@ -1,0 +1,148 @@
+<UserControl
+    x:Class="HdcMirror.App.Views.DeviceManagePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:res="clr-namespace:HdcMirror.App.Resources"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    FontSize="13">
+
+    <!-- 底部多留 34px：主窗口的状态提示条悬浮在手机框底部，否则会压住最下面的说明文字。 -->
+    <Grid Margin="16,14,16,34">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock
+            Grid.Row="0"
+            FontSize="16"
+            FontWeight="Bold"
+            Foreground="#FFFFFFFF"
+            Text="{x:Static res:Strings.DevMgr_Title}" />
+
+        <TextBlock
+            Grid.Row="1"
+            Margin="0,10,0,6"
+            FontSize="12"
+            Foreground="#99FFFFFF"
+            Text="{x:Static res:Strings.DevMgr_Saved}" />
+
+        <!-- 已记住的设备：两行（名称大、地址小）+ 连接 / 删除 -->
+        <Grid Grid.Row="2">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="SavedList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border
+                                Margin="0,0,0,6"
+                                Padding="10,8"
+                                Background="#14FFFFFF"
+                                CornerRadius="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock
+                                            FontSize="13"
+                                            FontWeight="SemiBold"
+                                            Foreground="#F2FFFFFF"
+                                            Text="{Binding Title}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Margin="0,2,0,0"
+                                            FontSize="11"
+                                            Foreground="#80FFFFFF"
+                                            Text="{Binding Subtitle}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+
+                                    <ui:Button
+                                        Grid.Column="1"
+                                        Height="26"
+                                        Margin="6,0,0,0"
+                                        Padding="10,0"
+                                        Appearance="Primary"
+                                        Click="OnSavedConnectClick"
+                                        Content="{x:Static res:Strings.DevMgr_Connect}" />
+
+                                    <Button
+                                        Grid.Column="2"
+                                        Height="26"
+                                        Margin="6,0,0,0"
+                                        Padding="8,0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Click="OnSavedDeleteClick"
+                                        Content="{x:Static res:Strings.DevMgr_Delete}"
+                                        FontSize="12"
+                                        Foreground="#99FFFFFF" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock
+                x:Name="EmptyHint"
+                Margin="0,6,0,0"
+                FontSize="12"
+                Foreground="#66FFFFFF"
+                Text="{x:Static res:Strings.DevMgr_Empty}"
+                TextWrapping="Wrap" />
+        </Grid>
+
+        <StackPanel Grid.Row="3" Margin="0,10,0,0">
+            <TextBlock
+                Margin="0,0,0,6"
+                FontSize="12"
+                Foreground="#99FFFFFF"
+                Text="{x:Static res:Strings.DevMgr_Manual}" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:TextBox
+                    x:Name="IpBox"
+                    Grid.Column="0"
+                    Height="30"
+                    Margin="0,0,6,0"
+                    PlaceholderText="192.0.2.10" />
+
+                <ui:TextBox
+                    x:Name="PortBox"
+                    Grid.Column="1"
+                    Width="72"
+                    Height="30"
+                    Margin="0,0,6,0"
+                    PlaceholderText="5555" />
+
+                <ui:Button
+                    Grid.Column="2"
+                    Height="30"
+                    Padding="12,0"
+                    Appearance="Primary"
+                    Click="OnManualConnectClick"
+                    Content="{x:Static res:Strings.DevMgr_Connect}" />
+            </Grid>
+        </StackPanel>
+
+        <TextBlock
+            Grid.Row="4"
+            Margin="0,10,0,0"
+            FontSize="11"
+            Foreground="#59FFFFFF"
+            Text="{x:Static res:Strings.DevMgr_Hint}"
+            TextWrapping="Wrap" />
+    </Grid>
+</UserControl>

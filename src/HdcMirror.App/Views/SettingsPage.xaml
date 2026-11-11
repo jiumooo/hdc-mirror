@@ -1,0 +1,137 @@
+<UserControl
+    x:Class="HdcMirror.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:res="clr-namespace:HdcMirror.App.Resources"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20,8,20,20">
+            <TextBlock
+                FontSize="20"
+                FontWeight="Bold"
+                Text="{x:Static res:Strings.Nav_Settings}" />
+
+            <TextBlock
+                Margin="0,6,0,14"
+                FontSize="12"
+                Opacity="0.7"
+                Text="{x:Static res:Strings.Settings_EffectiveHint}"
+                TextWrapping="Wrap" />
+
+            <!--  画质  -->
+            <Border
+                Padding="16"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="8">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Text="{x:Static res:Strings.Settings_Quality}" />
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_FrameRate}" />
+                            <TextBlock
+                                Margin="0,2,0,0"
+                                FontSize="11"
+                                Opacity="0.6"
+                                Text="{x:Static res:Strings.Settings_FrameRateHint}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="FrameRateBox"
+                            Grid.Column="1"
+                            Height="32"
+                            VerticalAlignment="Center"
+                            SelectionChanged="OnFrameRateChanged">
+                            <ComboBoxItem Content="30" />
+                            <ComboBoxItem Content="60" />
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_BitRate}" />
+                            <TextBlock
+                                Margin="0,2,0,0"
+                                FontSize="11"
+                                Opacity="0.6"
+                                Text="{x:Static res:Strings.Settings_BitRateHint}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="BitRateBox"
+                            Grid.Column="1"
+                            Height="32"
+                            VerticalAlignment="Center"
+                            SelectionChanged="OnBitRateChanged">
+                            <ComboBoxItem Content="4" />
+                            <ComboBoxItem Content="8" />
+                            <ComboBoxItem Content="16" />
+                            <ComboBoxItem Content="24" />
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  行为  -->
+            <Border
+                Margin="0,12,0,0"
+                Padding="16"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="8">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Text="{x:Static res:Strings.Settings_Behavior}" />
+                    <CheckBox
+                        x:Name="CloseToTrayBox"
+                        Margin="0,14,0,0"
+                        Checked="OnCloseToTrayChanged"
+                        Content="{x:Static res:Strings.Settings_CloseToTray}"
+                        FontSize="13"
+                        Unchecked="OnCloseToTrayChanged" />
+                </StackPanel>
+            </Border>
+
+            <!--  音频  -->
+            <Border
+                Margin="0,12,0,0"
+                Padding="16"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="8">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Text="{x:Static res:Strings.Settings_Audio}" />
+                    <CheckBox
+                        x:Name="AutoAudioBox"
+                        Margin="0,14,0,0"
+                        Checked="OnAutoAudioChanged"
+                        Content="{x:Static res:Strings.Settings_AutoAudio}"
+                        FontSize="13"
+                        Unchecked="OnAutoAudioChanged" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock
+                x:Name="SavedText"
+                Margin="0,12,0,0"
+                FontSize="12"
+                Opacity="0"
+                Text="{x:Static res:Strings.Settings_EffectiveHint}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,78 @@
+<ui:FluentWindow
+    x:Class="HdcMirror.App.SupporterWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:res="clr-namespace:HdcMirror.App.Resources"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    Title="{x:Static res:Strings.Supporter_Title}"
+    Width="420"
+    Height="560"
+    ResizeMode="NoResize"
+    ExtendsContentIntoTitleBar="True"
+    FontFamily="Segoe UI Variable Text, Segoe UI, Microsoft YaHei UI"
+    FontSize="13"
+    FontWeight="Medium"
+    WindowBackdropType="Mica"
+    WindowCornerPreference="Round"
+    WindowStartupLocation="CenterOwner">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{x:Static res:Strings.Supporter_Title}" />
+
+        <StackPanel Grid.Row="1" Margin="24,8,24,24">
+            <!-- 二维码占位：正式图片随仓库一起发布到 Assets\donate-qr.png -->
+            <Border
+                Width="200"
+                Height="200"
+                HorizontalAlignment="Center"
+                Background="#FFF3F3F3"
+                CornerRadius="12">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="#99000000"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap"
+                    Text="{x:Static res:Strings.Supporter_QrPlaceholder}" />
+            </Border>
+
+            <TextBlock
+                Margin="0,16,0,0"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                FontSize="12"
+                Opacity="0.7"
+                Text="{x:Static res:Strings.Supporter_Note}" />
+
+            <TextBlock
+                Margin="0,20,0,8"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Text="{x:Static res:Strings.Supporter_ListTitle}" />
+
+            <Border
+                Padding="16"
+                Background="#0F000000"
+                CornerRadius="8">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Opacity="0.6"
+                    Text="{x:Static res:Strings.Supporter_Empty}" />
+            </Border>
+
+            <ui:Button
+                Margin="0,20,0,0"
+                HorizontalAlignment="Right"
+                Appearance="Primary"
+                Click="OnCloseClick"
+                Content="{x:Static res:Strings.Ui_Close}" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

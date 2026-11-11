@@ -1,0 +1,6 @@
+﻿# 隐私扫描白名单
+# 每行：相对路径glob|规则ID|理由
+# 只允许「公开发售型号、公开常量」这类功能性字符串；个人身份信息一律改内容，不许往这里加。
+src\HdcMirror.Core\Hdc\HdcDeviceInfoReader.cs|DEVICE_MODEL|型号→SoC 映射键，公开发售机型编号，不含个人信息
+docs\12-设备发现与信息读取.md|DEVICE_MODEL|同上，文档记录映射关系
+tools\privacy-allowlist.txt|DEVICE_MODEL|白名单自身的机型键

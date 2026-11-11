@@ -1,0 +1,62 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>HdcMirror.App</RootNamespace>
+    <!-- 对外名称不带 App 后缀（用户要求）：可执行文件即 HdcMirror.exe -->
+    <AssemblyName>HdcMirror</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- L3：默认资源语言固定 zh-CN，缺键时回退到中文而不是空串 -->
+    <NeutralResourcesLanguage>zh-CN</NeutralResourcesLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <!-- 2.4.1 起只发 net10.0-windows / net462，net8 会落到 .NET Framework 资产并报 NU1701；2.3.2 是最后一个带 net8.0-windows 的稳定版 -->
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdcMirror.Core\HdcMirror.Core.csproj" />
+    <ProjectReference Include="..\HdcMirror.Decode\HdcMirror.Decode.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <!-- hdc 随程序分发：构建后落在 <输出>\tools\hdc.exe，HdcLocator 会优先探测这里。
+       只用到 hdc 的公共命令（list targets / tconn / shell / fport / file send），不改手机系统组件。 -->
+  <ItemGroup>
+    <None Include="tools\windows-x64\hdc.exe" Link="tools\hdc.exe" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="tools\windows-x64\libusb_shared.dll" Link="tools\libusb_shared.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- 音频子进程 TFM 是 net8.0-windows10.0.19041.0，不能被 net8.0-windows 的工程直接引用；
+       用 MSBuild 任务显式先编它，再用下面的 Copy 目标搬产物。 -->
+  <Target Name="BuildAudioSink" BeforeTargets="Build">
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\HdcMirror.Audio\HdcMirror.Audio.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration)" />
+  </Target>
+
+  <!--
+    音频接收器是独立进程（net8.0-windows10.0.19041.0 才能用 WinRT 的 AudioPlaybackConnection），
+    这里把它的整套输出（exe/dll/runtimeconfig/WinRT 运行时）抄到 <输出>\audio\，
+    主程序按 audio\HdcMirror.Audio.exe 拉起。
+  -->
+  <Target Name="CopyAudioSink" AfterTargets="Build">
+    <ItemGroup>
+      <_AudioSinkFiles Include="$(MSBuildThisFileDirectory)..\HdcMirror.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\**\*.*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_AudioSinkFiles)"
+      DestinationFolder="$(OutDir)audio\%(RecursiveDir)"
+      SkipUnchangedFiles="true"
+      Condition="'@(_AudioSinkFiles)' != ''" />
+  </Target>
+
+</Project>

@@ -1,0 +1,89 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  scrcpy.proto —— 鸿蒙 hosScrcpy 投屏服务 gRPC 契约（手写重建版）
+//
+//  来源说明
+//  --------
+//  上游 hosScrcpy-1.0.20-beta.jar 内的 protobuf 生成类被 ProGuard 混淆，
+//  消息 toString()/TextFormat 会抛 IllegalStateException: missing method setResult，
+//  reference/ 内也没有 .proto 文件。因此本文件不是"反编译抄来的"，而是：
+//
+//    1) 从 docs/reference/hnscrcpy-main/docs/HOS_SCRCPY_PROTOCOL.md §3 拿到服务/消息骨架；
+//    2) 用 Grpc.Net.Client + 原始 byte[] marshaller 直接抓 ReplyMessage 的 wire bytes；
+//    3) 按 protobuf wire format 反推字段号，逐字段对齐。
+//
+//  因此 —— 本文件里**每一个字段号都有实测依据**，与原始文档的推测值不同处已标出。
+//
+//  实测抓包（2026-11-11，HarmonyOS NEXT 真机 / uitest 7.0.0.1 / .so 6.8 变体）
+//  ---------------------------------------------------------------------------
+//  首条 ReplyMessage 的原始字节：
+//
+//    1A 2A  0A 04 "data"  12 22  2A 20 <32B AnnexB: SPS(23)+PPS(9)>
+//    1A 09  0A 03 "len"   12 02  08 20
+//    1A 0E  0A 03 "pts"   12 07  08 C2 B0 F1 B1 9C 34
+//    1A 0B  0A 05 "flags" 12 02  08 08
+//
+//  逐层读出来就是：
+//    - 外层字段头 0x1A = field 3, wire 2   → ReplyMessage.payload 是 **field 3**
+//      （HOS_SCRCPY_PROTOCOL.md:69 推测为 1，实测为 3；按 1 解析会得到空 map）
+//    - map entry：0x0A = key(field 1, string)，0x12 = value(field 2, message)
+//    - ParamValue 内：
+//        0x08 = field 1, wire 0 (varint) → 整型载荷，实测承载 flags / pts / len
+//        0x2A = field 5, wire 2 (bytes)  → 字节载荷，实测承载 data（Annex B H.264）
+//
+//  field 2/3/4 在任何一条报文里都未出现，故本文件不声明它们；protobuf 对未知
+//  字段是按 wire 跳过的，所以将来设备若新增字段，旧客户端不会崩。
+// ═══════════════════════════════════════════════════════════════════════════════
+
+syntax = "proto3";
+
+// 注意：无 package。因此服务的全限定名就是 "ScrcpyService"，
+// gRPC 方法路径为 /ScrcpyService/onStart，HTTP/2 :path 不带任何包前缀。
+service ScrcpyService {
+  // 视频流。server-streaming：一次请求，之后服务端持续推帧，
+  // 直到客户端取消或调用 onEnd。
+  // 实测：首帧 794 ms（含建流）；按屏幕变化推流，静置零帧属正常。
+  rpc onStart (Empty) returns (stream ReplyMessage);
+
+  // 结束会话。一元调用。
+  // 实测：正常返回，回包 2 字节（形如 08 00，推断为 field 1 varint = 0 的结果码）。
+  rpc onEnd (Empty) returns (ReplyEndMessage);
+
+  // 请求一个 IDR 关键帧。一元调用。
+  // 用途：解码器丢帧/花屏后恢复；客户端不需要周期性调用（服务端已有
+  // -iFrameInterval 2000 的自动关键帧间隔）。
+  rpc onRequestIDRFrame (Empty) returns (ReplyEndMessage);
+}
+
+// 空请求体。protobuf 序列化后为 0 字节，实测服务端接受。
+message Empty {}
+
+// 通用参数容器。同一 key 的语义由 key 名决定，不依赖字段号。
+message ParamValue {
+  // 整型载荷。实测承载：
+  //   flags —— 帧标志：8 = 配置帧(SPS+PPS)、2 = IDR、0 = 普通 P 帧
+  //   pts   —— 纳秒级时间戳，单调递增（实测 1794327205954 → 1794327217161）
+  //   len   —— 本帧 data 的字节数（实测与 data 长度完全相等）
+  int64 valLong = 1;
+
+  // 字节载荷。实测只承载 data = Annex B H.264 访问单元，
+  // 每个访问单元以 4 字节起始码 00 00 00 01 开头，一条 gRPC 消息 = 一帧。
+  bytes valBytes = 5;
+
+  // field 2/3/4 未观测到，留空（勿臆造）。
+}
+
+// 视频流每条消息 = 一帧。
+message ReplyMessage {
+  // 实测 tag = 3。
+  // 实际出现的 key 只有四个：data / pts / flags / len。
+  // 首条消息只带 data/len/pts/flags 的配置帧（SPS+PPS 合包，实测 32 字节）。
+  map<string, ParamValue> payload = 3;
+}
+
+// onEnd / onRequestIDRFrame 的回包。
+// 实测 onEnd 回包 2 字节，按 wire format 读作 field 1 varint = 0。
+// 结构未经交叉验证，此处按同构 + 结果码重建；客户端只需判 status，不必解析内容。
+message ReplyEndMessage {
+  map<string, ParamValue> payload = 3;   // 推测同构，未验证
+  int32 result = 1;                      // 推测：0 = 成功，未验证
+}

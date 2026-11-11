@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯逻辑层：不得需要 -windows，一旦有人往这里塞 WPF/桌面 SDK 依赖，编译期就会暴露 -->
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>HdcMirror.Core</RootNamespace>
+    <AssemblyName>HdcMirror.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 版本与 src/poc 的 POC 保持一致：gRPC 2.66.0 是实测通过的组合 -->
+    <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.27.3" />
+    <PackageReference Include="Grpc.Tools" Version="2.66.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 契约文件见 Scrcpy/scrcpy.proto；只生成客户端，不需要服务端基类 -->
+    <Protobuf Include="Scrcpy\scrcpy.proto" GrpcServices="Client" />
+  </ItemGroup>
+
+</Project>

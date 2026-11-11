@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    M5「应用内更新」可行性 POC。
+    刻意不加入 HdcMirror.sln：主线构建只许三个工程，POC 不得影响 0 错 0 警的出口标准。
+    版本号不在此声明，继承 ..\Directory.Build.props 的唯一来源。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>HdcMirror.UpdatePoc</RootNamespace>
+    <AssemblyName>UpdatePoc</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- CLI vpk 1.2.161 与本包必须同版，否则 pack 出来的清单格式与客户端解析口径可能不一致 -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+</Project>

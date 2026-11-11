@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    离线自检工程：不引第三方测试框架（本机无 NuGet 源也能跑），
+    只用 Console + 断言，失败时进程退出码为 1。
+    跑法：见 tools\selftest.ps1
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>HdcMirror.SelfTest</AssemblyName>
+    <RootNamespace>HdcMirror.SelfTest</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdcMirror.Core\HdcMirror.Core.csproj" />
+    <ProjectReference Include="..\HdcMirror.App\HdcMirror.App.csproj" />
+  </ItemGroup>
+
+</Project>

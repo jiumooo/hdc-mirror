@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HnCast.Poc</RootNamespace>
+    <AssemblyName>hncast-poc</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 中文控制台输出 -->
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+  </ItemGroup>
+
+</Project>

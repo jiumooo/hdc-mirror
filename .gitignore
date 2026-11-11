@@ -1,0 +1,89 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+#  HdcMirror（鸿蒙手机无线控制）仓库忽略规则
+#  隐私相关条目见 RULES.md「隐私红线」；改动本文件前请先读那一节。
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── 构建产物与 IDE 状态 ──────────────────────────────────────────────────────
+bin/
+obj/
+publish/
+releases/
+dist/
+*.nupkg
+*.snupkg
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ── 编辑残留 ────────────────────────────────────────────────────────────────
+*.bak
+*.bak-*
+*.orig
+*.tmp
+~$*
+*.swp
+*~
+
+# ── 一次性探针、临时目录与日志 ──────────────────────────────────────────────
+_probe/
+.scratch/
+logs/
+*.log
+
+# ── 第三方参考物（上游公开源码/二进制，不入库） ─────────────────────────────
+docs/reference/
+tools/hdc.exe
+tools/*.jar
+tools/*.so
+
+# ── 真实屏幕内容：绝对禁止入库 ──────────────────────────────────────────────
+# 这些文件含真实手机画面（第三方 App 界面、用户浏览内容），属于个人隐私。
+# 需要解码回归样本时，只提交无画面的码流头（如 samples/extradata.bin）。
+samples/*.jpeg
+samples/*.jpg
+samples/*.png
+samples/*.gif
+samples/*.webp
+samples/*.h264
+samples/*.h265
+samples/*.mp4
+samples/*.webm
+samples/*.mkv
+
+# 例外：32 字节 SPS+PPS 参数集，纯协议头、无画面、无隐私，必须入库
+!samples/extradata.bin
+
+# ── 敏感凭据 ────────────────────────────────────────────────────────────────
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+*.pem
+*.jks
+*.keystore
+config.local.*
+appsettings.local.json
+id_rsa*
+id_ed25519*
+
+# ── 跨平台噪声 ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+__pycache__/
+*.pyc
+
+# FFmpeg 原生库（GPL，本地获取，不进仓库）
+native/
+# ── POC / 打包产物（都不入库）────────────────────────────────────────────────
+tools/pack/stage/
+tools/pack/dist/
+src/_probe_pkg/
+src/_probe/
+_probe/
+samples/
+docs/shots/
+*.zip

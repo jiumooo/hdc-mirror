@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 解码层：libavcodec（FFmpeg.AutoGen）H.264 解码，输出 BGRA32；不得引用 WPF -->
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>HdcMirror.Decode</RootNamespace>
+    <AssemblyName>HdcMirror.Decode</AssemblyName>
+    <!-- 与 libavcodec 的互操作需要裸指针（AVFrame*/AVPacket*），不涉及任何用户输入的内存访问 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 包版本 = 生成绑定时的 FFmpeg 版本；9.0.1.1 对应原生库主版本 avcodec=63 / avutil=61 / swscale=10 -->
+    <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
+    <PackageReference Include="FFmpeg.AutoGen.Bindings.DynamicallyLoaded" Version="9.0.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdcMirror.Core\HdcMirror.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    原生库不进仓库（native/ 已被 .gitignore 忽略，GPL v3 由使用者自行获取：
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools\fetch-ffmpeg.ps1）。
+    存在时随构建复制到输出目录 native\ffmpeg\win64，由 FfmpegRuntime 按该路径设置 ffmpeg.RootPath。
+  -->
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\native\ffmpeg\win64')">
+    <None Include="$(MSBuildThisFileDirectory)..\..\native\ffmpeg\win64\*.dll"
+          Link="native\ffmpeg\win64\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+</Project>

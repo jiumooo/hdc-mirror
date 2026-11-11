@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HdcMirror.Core", "HdcMirror.Core\HdcMirror.Core.csproj", "{75CDFCA6-8C34-439E-AE8B-79E547B8028F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HdcMirror.Decode", "HdcMirror.Decode\HdcMirror.Decode.csproj", "{90FD77EB-EB89-4684-AB68-222DD6A912F5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HdcMirror.App", "HdcMirror.App\HdcMirror.App.csproj", "{91D37247-971D-4139-926D-6FA45CC5471C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HdcMirror.Audio", "HdcMirror.Audio\HdcMirror.Audio.csproj", "{003AF1DB-D002-4D63-8C5E-491BEDD1068A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HdcMirror.SelfTest", "HdcMirror.SelfTest\HdcMirror.SelfTest.csproj", "{8DE52421-A80E-4E3F-8147-40D57FAF1456}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{75CDFCA6-8C34-439E-AE8B-79E547B8028F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75CDFCA6-8C34-439E-AE8B-79E547B8028F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75CDFCA6-8C34-439E-AE8B-79E547B8028F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75CDFCA6-8C34-439E-AE8B-79E547B8028F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90FD77EB-EB89-4684-AB68-222DD6A912F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90FD77EB-EB89-4684-AB68-222DD6A912F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90FD77EB-EB89-4684-AB68-222DD6A912F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90FD77EB-EB89-4684-AB68-222DD6A912F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91D37247-971D-4139-926D-6FA45CC5471C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91D37247-971D-4139-926D-6FA45CC5471C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91D37247-971D-4139-926D-6FA45CC5471C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91D37247-971D-4139-926D-6FA45CC5471C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{003AF1DB-D002-4D63-8C5E-491BEDD1068A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{003AF1DB-D002-4D63-8C5E-491BEDD1068A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{003AF1DB-D002-4D63-8C5E-491BEDD1068A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{003AF1DB-D002-4D63-8C5E-491BEDD1068A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8DE52421-A80E-4E3F-8147-40D57FAF1456}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8DE52421-A80E-4E3F-8147-40D57FAF1456}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8DE52421-A80E-4E3F-8147-40D57FAF1456}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8DE52421-A80E-4E3F-8147-40D57FAF1456}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
