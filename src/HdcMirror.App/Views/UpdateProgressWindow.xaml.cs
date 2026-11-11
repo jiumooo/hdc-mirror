@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
@@ -46,6 +46,13 @@ public partial class UpdateProgressWindow : Window
     /// <param name="percent">0~100。</param>
     public void ReportPercent(int percent)
     {
+        // Velopack 在下载线程上直接回调，不能在这里碰控件，统一转回 UI 线程。
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action<int>(ReportPercent), percent);
+            return;
+        }
+
         if (Canceled)
         {
             return;
