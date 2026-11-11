@@ -279,8 +279,22 @@ public static class Strings
     /// <summary>界面文案 <c>DevMgr_Hint</c>：设备管理页：隐私说明。</summary>
     public static string DevMgr_Hint => Get(nameof(DevMgr_Hint));
 
-    /// <summary>界面文案 <c>Ui_ZoomFormat</c>：手机窗口控制条上的缩放比例。</summary>
-    public static string Ui_ZoomFormat => Get(nameof(Ui_ZoomFormat));
+    /// <summary>界面文案 <c>Dev_DoubleClickConnect</c>：设备行悬停提示。</summary>
+    public static string Dev_DoubleClickConnect => Get(nameof(Dev_DoubleClickConnect));
+    /// <summary>界面文案 <c>Dev_ManualTitle</c>：手动连接表单标题。</summary>
+    public static string Dev_ManualTitle => Get(nameof(Dev_ManualTitle));
+    /// <summary>界面文案 <c>Dev_ManualHint</c>：手动连接表单说明。</summary>
+    public static string Dev_ManualHint => Get(nameof(Dev_ManualHint));
+    /// <summary>界面文案 <c>Dev_ManualIpPlaceholder</c>：手动连接 IP 占位文字。</summary>
+    public static string Dev_ManualIpPlaceholder => Get(nameof(Dev_ManualIpPlaceholder));
+    /// <summary>界面文案 <c>Dev_ManualPortPlaceholder</c>：手动连接端口占位文字。</summary>
+    public static string Dev_ManualPortPlaceholder => Get(nameof(Dev_ManualPortPlaceholder));
+    /// <summary>界面文案 <c>Dev_ManualConnect</c>：手动连接按钮。</summary>
+    public static string Dev_ManualConnect => Get(nameof(Dev_ManualConnect));
+    /// <summary>界面文案 <c>DevMgr_IpPlaceholder</c>：设备管理页 IP 占位文字。</summary>
+    public static string DevMgr_IpPlaceholder => Get(nameof(DevMgr_IpPlaceholder));
+    /// <summary>界面文案 <c>DevMgr_PortPlaceholder</c>：设备管理页端口占位文字。</summary>
+    public static string DevMgr_PortPlaceholder => Get(nameof(DevMgr_PortPlaceholder));
     /// <summary>界面文案 <c>Ui_Delete</c>：删除设备按钮提示。</summary>
     public static string Ui_Delete => Get(nameof(Ui_Delete));
 
@@ -410,6 +424,20 @@ public static class Strings
     public static string Ui_KeyBack => Get(nameof(Ui_KeyBack));
     /// <summary>界面文案 <c>Ui_KeyRecent</c>：最近任务</summary>
     public static string Ui_KeyRecent => Get(nameof(Ui_KeyRecent));
-    /// <summary>界面文案 <c>Ui_KeyPower</c>：电源键</summary>
-    public static string Ui_KeyPower => Get(nameof(Ui_KeyPower));
+    /// <summary>界面文案 <c>Status_ManualNeedAddress</c>：手动连接缺少地址或端口。</summary>
+    public static string Status_ManualNeedAddress => Get(nameof(Status_ManualNeedAddress));
+    /// <summary>界面文案 <c>Ui_Pin</c>：窗口置顶按钮提示（未置顶时）</summary>
+    public static string Ui_Pin => Get(nameof(Ui_Pin));
+    /// <summary>界面文案 <c>Ui_PinOff</c>：窗口置顶按钮提示（已置顶时）</summary>
+    public static string Ui_PinOff => Get(nameof(Ui_PinOff));
+    /// <summary>界面文案 <c>Ui_PageDevices</c>：控制条上的设备管理入口</summary>
+    public static string Ui_PageDevices => Get(nameof(Ui_PageDevices));
+    /// <summary>界面文案 <c>Ui_PageSettings</c>：控制条上的设置入口</summary>
+    public static string Ui_PageSettings => Get(nameof(Ui_PageSettings));
+    /// <summary>界面文案 <c>Ui_PageClose</c>：收起覆盖层页面</summary>
+    public static string Ui_PageClose => Get(nameof(Ui_PageClose));
+    /// <summary>界面文案 <c>Ui_InfoTitle</c>：锁屏画面上的设备信息标题</summary>
+    public static string Ui_InfoTitle => Get(nameof(Ui_InfoTitle));
+    /// <summary>界面文案 <c>Ui_IdleHint</c>：未开始镜像且没有背景图时的提示</summary>
+    public static string Ui_IdleHint => Get(nameof(Ui_IdleHint));
 }

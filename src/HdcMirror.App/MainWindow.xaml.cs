@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -45,6 +45,8 @@ public partial class MainWindow
 
     /// <summary>已记住设备的本地清单（只有显示名与端点，不含序列号）。</summary>
     private readonly DeviceStore _store = new();
+    private SettingsPage? _settingsPage;
+    private KeysPage? _keysPage;
 
     /// <summary>
     /// 端点线索库。「忘记设备」会清掉设备清单，但无线调试端口是随机分配的，
@@ -94,6 +96,9 @@ public partial class MainWindow
         Loaded -= OnFirstLoaded;
         UpdatePhoneFrameSize();
 
+        // 全新安装（还没记住过任何设备）时，手机屏中央直接给手动连接表单。
+        UpdateManualPanel();
+
         // 启动时若手机已经在无线调试里连着，就先读设备信息铺满屏幕，再开始投屏；
         // 没有设备就停在「尚未连接设备」，不空起一条会话。
         _ = AutoStartAsync();
@@ -113,6 +118,7 @@ public partial class MainWindow
             {
                 // 还没连过设备：直接走一次扫描，用户打开软件就能看到自己的手机。
                 await RefreshDevicesAsync().ConfigureAwait(true);
+                UpdateManualPanel();
                 return;
             }
 
@@ -126,6 +132,7 @@ public partial class MainWindow
             DevicePicker.SelectedItem = Devices.Count > 0 ? Devices[0] : null;
             await ShowDeviceInfoAsync(device).ConfigureAwait(true);
             ConnectButton.IsEnabled = true;
+            UpdateManualPanel();
         }
         catch (HdcException ex)
         {
@@ -658,8 +665,60 @@ public partial class MainWindow
         var page = new DeviceManagePage(_store);
         page.ConnectRequested += async (_, endpoint) => await ConnectEndpointAsync(endpoint).ConfigureAwait(true);
         page.Deleted += (_, endpoint) => RemoveDeviceByEndpoint(endpoint);
+        page.TabRequested += (_, key) => ShowSettingsTab(key);
         ManageHost.Children.Add(page);
         return page;
+    }
+
+    /// <summary>
+    /// 设置分栏就地切换：设备管理 / 通用设置 / 按键映射 都显示在手机屏这块区域里，不弹新窗口。
+    /// </summary>
+    /// <param name="key">devices / general / keys / av。</param>
+    private void ShowSettingsTab(string key)
+    {
+        ManageHost.Visibility = Visibility.Visible;
+        EmptyState.Visibility = Visibility.Collapsed;
+        ManualPanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Collapsed;
+        MirrorStatusHost.Visibility = Visibility.Collapsed;
+
+        _managePage ??= CreateManagePage();
+        _managePage.Visibility = key == "devices" ? Visibility.Visible : Visibility.Collapsed;
+
+        if (key == "general")
+        {
+            if (_settingsPage is null)
+            {
+                _settingsPage = new SettingsPage();
+                ManageHost.Children.Add(_settingsPage);
+            }
+
+            _settingsPage.Visibility = Visibility.Visible;
+        }
+        else if (_settingsPage is not null)
+        {
+            _settingsPage.Visibility = Visibility.Collapsed;
+        }
+
+        if (key == "keys")
+        {
+            if (_keysPage is null)
+            {
+                _keysPage = new KeysPage();
+                ManageHost.Children.Add(_keysPage);
+            }
+
+            _keysPage.Visibility = Visibility.Visible;
+        }
+        else if (_keysPage is not null)
+        {
+            _keysPage.Visibility = Visibility.Collapsed;
+        }
+
+        if (key == "devices")
+        {
+            _managePage.Refresh();
+        }
     }
 
     /// <summary>设备管理页删掉一条记录后，同步从设备栏下拉里移除同一台设备。</summary>
@@ -705,6 +764,55 @@ public partial class MainWindow
         OpenMirrorWindow(device);
     }
 
+    /// <summary>当前在手机屏上展示信息的设备；双击手机屏直接连它。</summary>
+    private HdcDevice? _infoDevice;
+
+    /// <summary>双击手机屏：已经扫描/读取到设备信息时，直接打开镜像窗口。</summary>
+    private void OnPhoneFrameMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || _infoDevice is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        OpenMirrorWindow(_infoDevice);
+    }
+
+    /// <summary>从未连接过设备时，手机屏中央那个手动连接表单的「连接」。</summary>
+    private async void OnManualConnectFromScreenClick(object sender, RoutedEventArgs e)
+    {
+        string ip = (ManualIpBox.Text ?? string.Empty).Trim();
+        string port = (ManualPortBox.Text ?? string.Empty).Trim();
+        if (ip.Length == 0 || port.Length == 0)
+        {
+            ShowStatus(Strings.Status_ManualNeedAddress);
+            return;
+        }
+
+        string endpoint = ip.Contains(':') ? ip : ip + ":" + port;
+        ManualPanel.IsEnabled = false;
+        try
+        {
+            await ConnectEndpointAsync(endpoint).ConfigureAwait(true);
+        }
+        finally
+        {
+            ManualPanel.IsEnabled = true;
+        }
+    }
+
+    /// <summary>还没记住过任何设备时，把手动连接表单摆在手机屏中央；记住过就收起。</summary>
+    private void UpdateManualPanel()
+    {
+        bool anySaved = _store.Load().Count > 0;
+        ManualPanel.Visibility = anySaved ? Visibility.Collapsed : Visibility.Visible;
+        if (!anySaved)
+        {
+            EmptyState.Visibility = Visibility.Collapsed;
+        }
+    }
+
     private void OnMenuDevicesClick(object sender, RoutedEventArgs e) => ShowManagePage();
 
     /// <summary>把设备信息面板显示出来：九项全部来自真机读取，读不到的留「—」。</summary>
@@ -731,6 +839,7 @@ public partial class MainWindow
     /// <returns>异步任务。</returns>
     private async Task FillInfoAsync(HdcDevice device)
     {
+        _infoDevice = device;
         InfoList.Children.Clear();
         EmptyState.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Visible;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -24,10 +24,7 @@ public sealed class DeviceStore
     /// <summary>默认位置：<c>%LOCALAPPDATA%\HdcMirror\devices.json</c>。</summary>
     public DeviceStore()
     {
-        string root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "HdcMirror");
-        _path = Path.Combine(root, "devices.json");
+        _path = HdcMirror.Core.AppPaths.DevicesFile;
     }
 
     /// <summary>清单文件完整路径，便于在「打开日志目录」时定位。</summary>

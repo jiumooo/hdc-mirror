@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace HdcMirror.Core.Diagnostics;
@@ -52,10 +52,7 @@ public sealed class FileLogSink : ILogSink, IDisposable
     }
 
     /// <summary>默认日志目录：<c>%LOCALAPPDATA%\HdcMirror\logs</c>。</summary>
-    public static string DefaultDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "HdcMirror",
-        "logs");
+    public static string DefaultDirectory { get; } = AppPaths.Logs;
 
     /// <summary>实际使用的日志目录。</summary>
     public string DirectoryPath { get; }

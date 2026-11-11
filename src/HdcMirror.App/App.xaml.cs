@@ -50,6 +50,10 @@ public partial class App : Application
             // 未安装（直接跑 Debug 输出）时会抛 NotInstalled 类异常，属正常，忽略。
         }
 
+        // 数据目录与安装目录分离后（0.0.2 起数据在 %APPDATA%\HdcMirror），
+        // 旧版本写在安装目录里的设备清单/设置/日志要搬一次；必须在读配置之前跑。
+        HdcMirror.Core.AppPaths.MigrateFromLegacy();
+
         base.OnStartup(e);
 
         // 必须在任何界面代码之前装好：M0 第一次启动时因导航时机问题在构造函数里

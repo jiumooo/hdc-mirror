@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -198,13 +198,13 @@
     <value>检查更新将在后续版本接入</value>
   </data>
   <data name="Link_Docs" xml:space="preserve">
-    <value>https://github.com/USERNAME/hdc-mirror#readme</value>
+    <value>https://github.com/jiumooo/hdc-mirror#readme</value>
   </data>
   <data name="Link_Issues" xml:space="preserve">
-    <value>https://github.com/USERNAME/hdc-mirror/issues</value>
+    <value>https://github.com/jiumooo/hdc-mirror/issues</value>
   </data>
   <data name="Link_Releases" xml:space="preserve">
-    <value>https://github.com/USERNAME/hdc-mirror/releases</value>
+    <value>https://github.com/jiumooo/hdc-mirror/releases</value>
   </data>
   <data name="Supporter_QrPlaceholder" xml:space="preserve">
     <value>二维码图片待放置</value>
@@ -282,7 +282,7 @@
     <comment>设备管理页：清单为空时的提示</comment>
   </data>
   <data name="DevMgr_Manual" xml:space="preserve">
-    <value>手动连接</value>
+    <value>手动连接设备</value>
     <comment>设备管理页：手动输入地址分组标题</comment>
   </data>
   <data name="DevMgr_Ip" xml:space="preserve">
@@ -305,9 +305,37 @@
     <value>设备只在本机保存显示名与地址，不含序列号</value>
     <comment>设备管理页：隐私说明</comment>
   </data>
-  <data name="Ui_ZoomFormat" xml:space="preserve">
-    <value>缩放 {0:0.##}x</value>
-    <comment>手机窗口控制条上的缩放比例，0 为占位符</comment>
+  <data name="Dev_DoubleClickConnect" xml:space="preserve">
+    <value>双击这台设备直接连接</value>
+    <comment>设备行悬停提示</comment>
+  </data>
+  <data name="Dev_ManualTitle" xml:space="preserve">
+    <value>手动连接设备</value>
+    <comment>手机屏中央手动连接表单标题</comment>
+  </data>
+  <data name="Dev_ManualHint" xml:space="preserve">
+    <value>填手机「无线调试」里显示的地址与端口；连过一次的设备会被记住</value>
+    <comment>手动连接表单说明</comment>
+  </data>
+  <data name="Dev_ManualIpPlaceholder" xml:space="preserve">
+    <value>设备 IP，例如 192.0.2.10</value>
+    <comment>手动连接表单 IP 占位文字（示例地址用文档保留地址）</comment>
+  </data>
+  <data name="Dev_ManualPortPlaceholder" xml:space="preserve">
+    <value>端口，例如 5555</value>
+    <comment>手动连接表单端口占位文字</comment>
+  </data>
+  <data name="Dev_ManualConnect" xml:space="preserve">
+    <value>连接</value>
+    <comment>手动连接表单的确认按钮</comment>
+  </data>
+  <data name="DevMgr_IpPlaceholder" xml:space="preserve">
+    <value>设备 IP，例如 192.0.2.10</value>
+    <comment>设备管理页手动连接输入框占位文字</comment>
+  </data>
+  <data name="DevMgr_PortPlaceholder" xml:space="preserve">
+    <value>端口，例如 5555</value>
+    <comment>设备管理页端口输入框占位文字</comment>
   </data>
   <data name="Ui_Delete" xml:space="preserve">
     <value>删除设备</value>
@@ -545,8 +573,36 @@
     <value>最近任务</value>
     <comment>手机窗口控制条的按钮提示</comment>
   </data>
-  <data name="Ui_KeyPower" xml:space="preserve">
-    <value>电源键</value>
-    <comment>手机窗口控制条的按钮提示</comment>
+  <data name="Status_ManualNeedAddress" xml:space="preserve">
+    <value>请先填写设备地址和端口</value>
+    <comment>手动连接表单缺少 IP 或端口时的状态提示</comment>
+  </data>
+  <data name="Ui_Pin" xml:space="preserve">
+    <value>窗口置顶：让手机窗口始终浮在其他窗口前面</value>
+    <comment>控制条上的置顶按钮提示（未置顶时）</comment>
+  </data>
+  <data name="Ui_PinOff" xml:space="preserve">
+    <value>取消置顶：手机窗口恢复正常层级</value>
+    <comment>控制条上的置顶按钮提示（已置顶时）</comment>
+  </data>
+  <data name="Ui_PageDevices" xml:space="preserve">
+    <value>设备管理</value>
+    <comment>控制条上的按钮：在窗口内打开设备管理页</comment>
+  </data>
+  <data name="Ui_PageSettings" xml:space="preserve">
+    <value>设置</value>
+    <comment>控制条上的按钮：在窗口内打开设置页</comment>
+  </data>
+  <data name="Ui_PageClose" xml:space="preserve">
+    <value>收起页面</value>
+    <comment>覆盖层右上角按钮：收起页面并恢复画面</comment>
+  </data>
+  <data name="Ui_InfoTitle" xml:space="preserve">
+    <value>设备信息</value>
+    <comment>未开始镜像时叠加在锁屏画面上的信息面板标题</comment>
+  </data>
+  <data name="Ui_IdleHint" xml:space="preserve">
+    <value>设备已连接，正在准备画面…</value>
+    <comment>未开始镜像且拿不到锁屏画面/上一帧时的提示</comment>
   </data>
 </root>

@@ -28,7 +28,7 @@
 
 
     <Window.Resources>
-        <!-- 控制条上的窗口按钮：32×26、圆角 6、悬停浅灰底；关闭键悬停转红 -->
+        <!-- 控制条上的窗口按钮：34×26、圆角 6、悬停浅灰底；关闭键悬停转红 -->
         <Style x:Key="BarButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="34" />
             <Setter Property="Height" Value="26" />
@@ -53,6 +53,79 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 最近任务：圆角正方形（26×26、圆角 7、细描边），与相邻按钮同高 -->
+        <Style x:Key="BarSquareButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="3,0,2,0" />
+            <Setter Property="Background" Value="#14FFFFFF" />
+            <Setter Property="BorderBrush" Value="#33FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="#E6FFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="7">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2EFFFFFF" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#55FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3DFFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 置顶图钉：选中（IsChecked）时保持高亮 -->
+        <Style x:Key="BarPinButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="4,0,2,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="#B3FFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="7">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#22FFFFFF" />
+                                <Setter Property="Foreground" Value="#FFFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#CC0A84FF" />
+                                <Setter Property="Foreground" Value="#FFFFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -90,8 +163,8 @@
     </Window.Resources>
 
     <!--
-        控制条用 DockPanel：竖屏 Dock 到上边，横屏 Dock 到右边并把内容整体旋转 90°，
-        这样同一份控件在两种朝向下都保持可读，不用维护两套。
+        控制条一律固定在窗口上方横排：横屏（设备转成横屏、窗口变宽）时不再旋转、
+        也不再移到右侧，避免里面的文字躺倒。一份布局同时服务横竖屏。
     -->
     <DockPanel x:Name="Shell" LastChildFill="True">
         <Border
@@ -107,6 +180,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock
@@ -117,16 +191,38 @@
                     Foreground="#E6FFFFFF"
                     TextTrimming="CharacterEllipsis" />
 
-                <TextBlock
-                    x:Name="ZoomText"
+                <!-- 置顶图钉：紧跟手机名称，选中即窗口 Topmost -->
+                <ToggleButton
+                    x:Name="PinButton"
                     Grid.Column="1"
-                    Margin="8,0,6,0"
                     VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="#99FFFFFF" />
+                    Checked="OnPinChecked"
+                    Content="&#xE718;"
+                    Style="{StaticResource BarPinButtonStyle}"
+                    ToolTip="{x:Static res:Strings.Ui_Pin}"
+                    Unchecked="OnPinChecked" />
 
+                <!-- 窗口内页面入口：不再弹新窗口，改为缩小画面 + 覆盖层 -->
                 <StackPanel
                     Grid.Column="2"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                    <Button
+                        x:Name="DevicesButton"
+                        Click="OnDevicesPageClick"
+                        Content="&#xE7F4;"
+                        Style="{StaticResource BarButtonStyle}"
+                        ToolTip="{x:Static res:Strings.Ui_PageDevices}" />
+                    <Button
+                        x:Name="SettingsButton"
+                        Click="OnSettingsPageClick"
+                        Content="&#xE713;"
+                        Style="{StaticResource BarButtonStyle}"
+                        ToolTip="{x:Static res:Strings.Ui_PageSettings}" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="3"
                     Orientation="Horizontal"
                     VerticalAlignment="Center">
                     <!-- 系统功能键：走 uitest keyEvent（uinput 对 Home/Back/Power 是假成功） -->
@@ -146,14 +242,8 @@
                         x:Name="RecentButton"
                         Click="OnKeyRecentClick"
                         Content="&#xE81C;"
-                        Style="{StaticResource BarButtonStyle}"
+                        Style="{StaticResource BarSquareButtonStyle}"
                         ToolTip="{x:Static res:Strings.Ui_KeyRecent}" />
-                    <Button
-                        x:Name="PowerButton"
-                        Click="OnKeyPowerClick"
-                        Content="&#xE7E8;"
-                        Style="{StaticResource BarButtonStyle}"
-                        ToolTip="{x:Static res:Strings.Ui_KeyPower}" />
                     <!-- 音频：把手机声音接到电脑（蓝牙 A2DP Sink，独立子进程负责） -->
                     <Button
                         x:Name="AudioButton"
@@ -181,12 +271,110 @@
             </Grid>
         </Border>
 
-        <!-- 画面区：Image 严格按帧尺寸显示，窗口比例由代码锁定，所以不会被拉变形 -->
+        <!-- 画面区 -->
         <Grid
             x:Name="ScreenHost"
             Background="#FF0B0B0B"
             ClipToBounds="True">
-            <Image x:Name="ScreenImage" SnapsToDevicePixels="True" Stretch="Fill" />
+
+            <!-- 页面覆盖层：在缩小的虚拟屏“下面”一层，供设备管理 / 设置等内容使用 -->
+            <Grid x:Name="OverlayHost" Background="#FF121212" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="14,10,8,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        x:Name="OverlayTitle"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="#F2FFFFFF"
+                        TextTrimming="CharacterEllipsis" />
+                    <Button
+                        Grid.Column="1"
+                        Click="OnOverlayCloseClick"
+                        Content="&#xE711;"
+                        Style="{StaticResource BarButtonStyle}"
+                        ToolTip="{x:Static res:Strings.Ui_PageClose}" />
+                </Grid>
+
+                <ContentControl
+                    x:Name="PageHost"
+                    Grid.Row="1"
+                    Margin="12,2,12,10" />
+            </Grid>
+
+            <!--
+                虚拟屏幕：四角圆角裁剪（Clip 在代码里按实际尺寸生成），
+                画面用 UniformToFill 铺满，多出的部分裁掉，不留上下黑边。
+            -->
+            <Border
+                x:Name="ScreenFrame"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="#FF0B0B0B"
+                ClipToBounds="True"
+                CornerRadius="10">
+                <Grid x:Name="FrameSurface" ClipToBounds="True">
+                    <Image
+                        x:Name="ScreenImage"
+                        SnapsToDevicePixels="True"
+                        Stretch="UniformToFill" />
+
+                    <!-- 未开始镜像时的锁屏画面 + 毛玻璃信息层 -->
+                    <Grid x:Name="IdleHost">
+                        <Border Background="#FF101218" />
+                        <Image x:Name="IdleBackdrop" SnapsToDevicePixels="True" Stretch="UniformToFill">
+                            <Image.Effect>
+                                <BlurEffect
+                                    KernelType="Gaussian"
+                                    Radius="26"
+                                    RenderingBias="Performance" />
+                            </Image.Effect>
+                        </Image>
+                        <!-- 半透明黑遮罩：毛玻璃的“磨砂”那一层 -->
+                        <Border Background="#99000000" />
+
+                        <ScrollViewer
+                            Margin="18,22,18,22"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="IdleInfoPanel">
+                                <StackPanel.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="14"
+                                        Opacity="0.9"
+                                        ShadowDepth="0"
+                                        Color="Black" />
+                                </StackPanel.Effect>
+                                <TextBlock
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="#F2FFFFFF"
+                                    Text="{x:Static res:Strings.Ui_InfoTitle}" />
+                                <StackPanel
+                                    x:Name="IdleInfoList"
+                                    Margin="0,14,0,0" />
+                                <TextBlock
+                                    x:Name="IdleHint"
+                                    Margin="0,10,0,0"
+                                    FontSize="12"
+                                    Foreground="#B3FFFFFF"
+                                    Text="{x:Static res:Strings.Ui_IdleHint}"
+                                    TextWrapping="Wrap"
+                                    Visibility="Collapsed" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </Border>
 
             <!-- 连接中 / 镜像中 · 尺寸 · fps / 空闲 -->
             <Border

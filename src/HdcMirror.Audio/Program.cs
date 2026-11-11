@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // HdcMirror.Audio —— 独立进程的蓝牙音频接收器
 //
 // 为什么单独一个进程：
@@ -30,6 +30,12 @@ internal static class Program
     /// <summary>Open 的等待窗口：给足手机端切换音频输出的操作时间。</summary>
     private static readonly TimeSpan OpenWait = TimeSpan.FromSeconds(32);
 
+    /// <summary>
+    /// 进程级持有连接。**不能用 using 包住**：RunAsync 一返回就 Dispose 会把接收端拆掉，
+    /// 手机端刚切过来的音频立刻断，表现为「电脑一闪而过就没了」。只留给进程退出时清理。
+    /// </summary>
+    private static AudioPlaybackConnection? _connection;
+
     private static int Main()
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -48,6 +54,15 @@ internal static class Program
             catch (IOException)
             {
                 // stdin 被关掉，等同于退出。
+            }
+
+            try
+            {
+                _connection?.Dispose();
+            }
+            catch (Exception)
+            {
+                // 退出路径上释放失败无需上报。
             }
 
             Console.WriteLine("EXIT");
@@ -84,29 +99,32 @@ internal static class Program
         }
 
         // 选择器已经限定「已配对 + A2DP AudioSink + 接口启用」，正常只会有一台。
-        AudioPlaybackConnection? connection = null;
         foreach (DeviceInformation info in devices)
         {
             AudioPlaybackConnection? candidate = AudioPlaybackConnection.TryCreateFromId(info.Id);
             if (candidate is not null)
             {
-                connection = candidate;
+                _connection = candidate;
                 Console.WriteLine("DEVICE " + info.Name);
                 break;
             }
         }
 
-        if (connection is null)
+        if (_connection is null)
         {
             Console.WriteLine("NO_DEVICE");
             return;
         }
 
-        using (connection)
         {
+            AudioPlaybackConnection connection = _connection;
             connection.StateChanged += (_, _) =>
             {
                 Console.WriteLine("STATE " + connection.State);
+                if (connection.State == AudioPlaybackConnectionState.Closed)
+                {
+                    Console.WriteLine("CLOSED");
+                }
             };
 
             connection.Start();

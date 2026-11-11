@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -24,10 +24,7 @@ public sealed class AppSettings
     public static AppSettings Current => _current ??= Load();
 
     /// <summary>配置文件路径。</summary>
-    public static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "HdcMirror",
-        "settings.json");
+    public static string FilePath => HdcMirror.Core.AppPaths.SettingsFile;
 
     /// <summary>采集帧率上限，取值 30 或 60。</summary>
     public int FrameRate { get; set; } = 60;

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using HdcMirror.Core.Diagnostics;
 
@@ -134,6 +134,11 @@ public static class HdcLocator
         if (!string.IsNullOrWhiteSpace(userConfiguredPath))
         {
             candidates.Add(Environment.ExpandEnvironmentVariables(userConfiguredPath!.Trim()));
+        }
+
+        if (!string.IsNullOrEmpty(AppPaths.DataRoot))
+        {
+            candidates.Add(Path.Combine(AppPaths.DataRoot, ExecutableName));
         }
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

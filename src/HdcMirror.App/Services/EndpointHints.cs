@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,10 +27,7 @@ public sealed class EndpointHints
     private List<EndpointHint>? _cache;
 
     /// <summary>线索文件路径。</summary>
-    public static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "HdcMirror",
-        "endpoints.json");
+    public static string FilePath => HdcMirror.Core.AppPaths.EndpointsFile;
 
     /// <summary>读出仍有效的线索，按最近使用时间倒序。</summary>
     public IReadOnlyList<EndpointHint> List()

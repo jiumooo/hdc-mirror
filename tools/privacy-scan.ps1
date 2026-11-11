@@ -324,15 +324,27 @@ if ($Fix -and $hits.Count -gt 0) {
     $hits = Invoke-Scan -Targets $Files
 }
 
-if ($hits.Count -eq 0) {
-    Write-Host "✔ 未发现个人信息。可以进入下一道闸门。" -ForegroundColor Green
+# 中文人名是启发式规则，误报率高（「用户的设备」「已知的设备」都会命中），
+# 因此只报告、不阻断：确定性规则（IP/路径/令牌/MAC 等）仍然一票否决。
+$heuristic = @($hits | Where-Object { $_.RuleId -eq 'CN_NAME' })
+$hard      = @($hits | Where-Object { $_.RuleId -ne 'CN_NAME' })
+
+if ($hard.Count -eq 0) {
+    if ($heuristic.Count -gt 0) {
+        Write-Host ("⚠ 启发式人名匹配 {0} 处（只报告，不阻断；确认是普通名词即可忽略）：" -f $heuristic.Count) -ForegroundColor Yellow
+        Write-Host ""
+        Show-Hits -Hits $heuristic
+        Write-Host ""
+    }
+
+    Write-Host "✔ 未发现确定性个人信息。可以进入下一道闸门。" -ForegroundColor Green
     Write-Host ""
     exit 0
 }
 
-Write-Host ("✗ 发现 {0} 处待处理项，涉及 {1} 个文件：" -f $hits.Count, ($hits | Select-Object -ExpandProperty File -Unique).Count) -ForegroundColor Red
+Write-Host ("✗ 发现 {0} 处待处理项，涉及 {1} 个文件：" -f $hard.Count, ($hard | Select-Object -ExpandProperty File -Unique).Count) -ForegroundColor Red
 Write-Host ""
-Show-Hits -Hits $hits
+Show-Hits -Hits $hard
 Write-Host ""
 Write-Host "处理建议：" -ForegroundColor Cyan
 Write-Host "  · 结构确定的项：powershell -NoProfile -ExecutionPolicy Bypass -File tools\privacy-scan.ps1 -Fix"

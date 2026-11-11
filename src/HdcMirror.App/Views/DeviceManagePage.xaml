@@ -13,19 +13,56 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock
+        <!--
+            设置分栏：设备管理与其它设置项排成一行，点一下就地切换，不再弹新窗口。
+            当前页加粗并用下划线标记。
+        -->
+        <StackPanel
             Grid.Row="0"
-            FontSize="16"
-            FontWeight="Bold"
-            Foreground="#FFFFFFFF"
-            Text="{x:Static res:Strings.DevMgr_Title}" />
+            Orientation="Horizontal">
+            <TextBlock
+                x:Name="TabDevices"
+                Margin="0,0,16,0"
+                FontSize="14"
+                FontWeight="Bold"
+                Foreground="#FFFFFFFF"
+                Text="{x:Static res:Strings.Menu_Settings_Devices}"
+                Cursor="Hand"
+                Tag="devices"
+                MouseLeftButtonUp="OnTabClick" />
+            <TextBlock
+                x:Name="TabGeneral"
+                Margin="0,0,16,0"
+                FontSize="14"
+                Foreground="#99FFFFFF"
+                Text="{x:Static res:Strings.Menu_Settings_General}"
+                Cursor="Hand"
+                Tag="general"
+                MouseLeftButtonUp="OnTabClick" />
+            <TextBlock
+                x:Name="TabKeys"
+                Margin="0,0,16,0"
+                FontSize="14"
+                Foreground="#99FFFFFF"
+                Text="{x:Static res:Strings.Menu_Settings_Keys}"
+                Cursor="Hand"
+                Tag="keys"
+                MouseLeftButtonUp="OnTabClick" />
+            <TextBlock
+                x:Name="TabAv"
+                FontSize="14"
+                Foreground="#59FFFFFF"
+                Text="{x:Static res:Strings.Menu_Settings_Av}"
+                Cursor="Hand"
+                Tag="av"
+                MouseLeftButtonUp="OnTabClick" />
+        </StackPanel>
 
         <TextBlock
             Grid.Row="1"
-            Margin="0,10,0,6"
+            Margin="0,12,0,6"
             FontSize="12"
             Foreground="#99FFFFFF"
             Text="{x:Static res:Strings.DevMgr_Saved}" />
@@ -99,50 +136,41 @@
                 TextWrapping="Wrap" />
         </Grid>
 
-        <StackPanel Grid.Row="3" Margin="0,10,0,0">
+        <!-- 手动连接：IP 单独一行给足宽度，端口与按钮放下一行，避免窄面板里被截断 -->
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <TextBlock
                 Margin="0,0,0,6"
                 FontSize="12"
                 Foreground="#99FFFFFF"
                 Text="{x:Static res:Strings.DevMgr_Manual}" />
-            <Grid>
+            <ui:TextBox
+                x:Name="IpBox"
+                Height="30"
+                MinWidth="180"
+                HorizontalAlignment="Stretch"
+                PlaceholderText="{x:Static res:Strings.DevMgr_IpPlaceholder}" />
+            <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="88" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <ui:TextBox
-                    x:Name="IpBox"
+                    x:Name="PortBox"
                     Grid.Column="0"
                     Height="30"
-                    Margin="0,0,6,0"
-                    PlaceholderText="192.0.2.10" />
-
-                <ui:TextBox
-                    x:Name="PortBox"
-                    Grid.Column="1"
-                    Width="72"
-                    Height="30"
-                    Margin="0,0,6,0"
-                    PlaceholderText="5555" />
+                    Margin="0,0,8,0"
+                    PlaceholderText="{x:Static res:Strings.DevMgr_PortPlaceholder}" />
 
                 <ui:Button
-                    Grid.Column="2"
+                    Grid.Column="1"
                     Height="30"
-                    Padding="12,0"
+                    HorizontalAlignment="Right"
+                    Padding="14,0"
                     Appearance="Primary"
                     Click="OnManualConnectClick"
                     Content="{x:Static res:Strings.DevMgr_Connect}" />
             </Grid>
         </StackPanel>
-
-        <TextBlock
-            Grid.Row="4"
-            Margin="0,10,0,0"
-            FontSize="11"
-            Foreground="#59FFFFFF"
-            Text="{x:Static res:Strings.DevMgr_Hint}"
-            TextWrapping="Wrap" />
     </Grid>
 </UserControl>

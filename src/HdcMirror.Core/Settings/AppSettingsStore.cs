@@ -1,4 +1,4 @@
-using System.Security;
+﻿using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -30,7 +30,7 @@ public sealed class AppSettingsStore
     public AppSettingsStore(string? directoryPath = null)
     {
         DirectoryPath = string.IsNullOrWhiteSpace(directoryPath)
-            ? Path.Combine(GetLocalAppDataRoot(), DirectoryName)
+            ? AppPaths.DataRoot
             : directoryPath;
 
         SettingsFilePath = Path.Combine(DirectoryPath, FileName);
