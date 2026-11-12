@@ -278,9 +278,9 @@ Write-Ok "pack 完成"
 Write-Step "⑤b 附带安装前检查脚本"
 $PreinstallSrc = Join-Path $PackRoot 'preinstall-check\HdcMirror-安装前检查.cmd'
 if (Test-Path $PreinstallSrc) {
-    $PreinstallDst = Join-Path $DistDir 'HdcMirror-安装前检查.cmd'
-    Copy-Item $PreinstallSrc $PreinstallDst -Force
-    Write-Ok "已放入 dist：HdcMirror-安装前检查.cmd（双击先自检 .NET 8 桌面运行时）"
+  $PreinstallDst = Join-Path $DistDir 'HdcMirror-preinstall-check.cmd'   # 必须 ASCII 名：gh CLI 上传会丢掉中文文件名
+  Copy-Item $PreinstallSrc $PreinstallDst -Force
+  Write-Ok 'dist 内的检查脚本名为 HdcMirror-preinstall-check.cmd（ASCII，供 GitHub 附件上传）'
 } else {
     Write-Warn "未找到 $PreinstallSrc，安装包不带前置检查脚本"
 }
@@ -330,6 +330,6 @@ Write-Ok "stage  = $stageMb MB"
 Write-Host "`n▶ 打包成功：$PackId $Version（$PublishMode）" -ForegroundColor Green
 Write-Host "  下一步（需人工许可，脚本不代做）：" -ForegroundColor Gray
 Write-Host "    1) 建 tag v$Version 并推送" -ForegroundColor Gray
-Write-Host "    2) 建 GitHub Release，附件上传 dist 下全部文件（含 HdcMirror-安装前检查.cmd）" -ForegroundColor Gray
+    Write-Host "    2) 建 GitHub Release，附件上传 dist 下全部文件（含 HdcMirror-preinstall-check.cmd）" -ForegroundColor Gray
 Write-Host "    3) Release 设为 latest（GithubSource 默认读 /releases/latest）" -ForegroundColor Gray
 exit 0
