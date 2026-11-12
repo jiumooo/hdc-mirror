@@ -189,3 +189,70 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\gh-api-push.ps1 `
 - 空仓库第一次必须先 `gh api --method PUT .../contents/README.md` 造一个初始提交，否则建 blob 会 409；
 - 脚本用 `git -c core.quotepath=false ls-tree` 取路径，中文文件名不会变成八进制转义；
 - `gh release upload` 走 `uploads.github.com`，正常可用。
+
+---
+
+## 五、版本发布审核（2026-11-12 起生效，覆盖 0.0.5 之后的所有版本）
+
+> 起因：0.0.3 ~ 0.0.7 连续五个版本未经仓库所有者测试与审核就推到了 GitHub。
+> 这不是"效率高"，是违反了本文件 1.1 / 1.2 两条。以下流程自此强制执行，不再有例外解释。
+
+### 5.1 两道门禁，缺一不可
+
+| 门 | 谁做 | 通过标准 |
+| --- | --- | --- |
+| 第一道：安装包自测 | 仓库所有者本人 | 在他自己的机器上装、跑、验证本次改动项，亲口说通过 |
+| 第二道：内容审核 | 仓库所有者本人 | 看过变更说明与提交内容，亲口说可以发布 |
+
+- 本地构建全绿、三闸全过、自检 9 项全过，**都不替代这两道门**。
+- "上次说过可以发"不覆盖这一次；"你自己看着办""快点"不构成审核。
+- 只有仓库所有者当轮原话明确指向本次版本，才算通过。
+
+### 5.2 标准流程（顺序不可换）
+
+```
+改代码 → 本地构建 + 自检 + 三闸 → 打安装包（只到 dist\，不提交、不打 tag）
+      → 把【安装包绝对路径 + 版本号 + 本次改了什么】报告给仓库所有者
+      → 他安装、测试
+      → 他说"通过 / 可以发" → git commit + tag + push + gh release
+```
+
+- 安装包打好之后**先不要 commit**。提交与发布同属被审核的动作。
+- 测试没过的版本：停在本地 `tools\pack\dist\`，可反复覆盖；不进仓库、不打 tag。
+- 修完再打一次包、再报一次路径、再等他测。循环到通过。
+
+### 5.3 每次发版必须报告的三样
+
+1. 本地安装包绝对路径，固定为
+   `D:\Documents\DSH Github 工作区\hdc-mirror\tools\pack\dist\HdcMirror-win-Setup.exe`
+2. 版本号（取自 `src\Directory.Build.props` 的 `<Version>`，唯一来源）
+3. 本次改了什么、需要重点测哪一条
+
+发布成功后再补第 4 样：Release 链接。**没有安装包路径的报告视为没交付。**
+
+### 5.4 违反后的处置
+
+- 已推的版本不回滚历史（回滚本身是破坏性操作），但必须在当轮对话里说明哪几个版本未经审核。
+- 下一版开始严格执行 5.2；连续遵守才算恢复信任。
+
+### 5.5 唯一例外
+
+仓库所有者当轮原话明确说"这一版不用测，直接发"——才可跳过 5.1，并在 Release 说明里注明"本版未经所有者实测"。
+
+### 5.6 日常修 bug 用热更新，不打安装包（2026-11-12 起，所有者要求）
+
+调试期一律走热更新，**不再每次打包 + 安装**：
+
+```powershell
+D:\Documents\DSH Github 工作区\hdc-mirror\tools\hotdeploy.ps1
+```
+
+它做四件事：结束 `HdcMirror` 进程与安装目录里的残留 `hdc.exe` → `dotnet build HdcMirror.App -c Debug` →
+`robocopy bin\Debug\net8.0-windows → %LOCALAPPDATA%\HdcMirror\current`（不删多余文件、不动 `Update.exe` 与 `packages\`）→ 重新启动。
+
+- 热更新**不改变版本号**，装出来的仍是同一个版本的安装记录；`current\` 里的文件被就地替换。
+- 只有所有者说"打包新版本 / 上传 GitHub"时，才跑 `tools\pack\build-release.ps1` 并出安装包（见 5.2）。
+- 参数：`-Release`（Release 编译）、`-NoStart`（只部署不启动）、`-NoBuild`（只同步现有 bin）。
+- 已知坑：`hdc.exe` 常驻服务会锁住 `tools\libusb_shared.dll`，不先结束就覆盖失败（脚本已处理）；
+  进程 `Path` 可能返回 8.3 短名 `HDCMIR~1`，匹配关键字不能用绝对路径前缀。
+

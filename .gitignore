@@ -87,3 +87,6 @@ _probe/
 samples/
 docs/shots/
 *.zip
+# 开发期资料：第三方参考源码与内部协作笔记不入库
+reference/
+docs/16-模块与专家分工.md

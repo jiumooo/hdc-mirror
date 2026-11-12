@@ -1,5 +1,8 @@
-using System;
+﻿using System;
 using System.Globalization;
+using System.Diagnostics;
+using System.IO;
+using HdcMirror.Core;
 using System.Windows;
 using System.Windows.Controls;
 using HdcMirror.App.Resources;
@@ -8,16 +11,16 @@ using HdcMirror.App.Services;
 namespace HdcMirror.App.Views;
 
 /// <summary>
-/// 设置页：画质（帧率 / 码率）、行为（关闭到托盘）、音频（连接后自动开）。
-/// 所有改动即改即存，写进 <c>%LOCALAPPDATA%\HdcMirror\settings.json</c>，
-/// 帧率与码率在下次建立镜像会话时生效（设备侧 daemon 不接受热改）。
+/// 通用设置页：行为（关闭窗口时最小化到托盘）。
+/// 改动即存，写进 <c>%LOCALAPPDATA%\HdcMirror\settings.json</c>。
+/// 画质与音频在「音画与音频」页（<see cref="AvPage"/>）。
 /// </summary>
 public partial class SettingsPage : UserControl
 {
     private readonly AppSettings _settings = AppSettings.Current;
     private bool _loading;
 
-    /// <summary>初始化设置页，并把当前配置回填到控件。</summary>
+    /// <summary>初始化通用设置页，并把当前配置回填到控件。</summary>
     public SettingsPage()
     {
         InitializeComponent();
@@ -29,53 +32,13 @@ public partial class SettingsPage : UserControl
         _loading = true;
         try
         {
-            FrameRateBox.SelectedIndex = _settings.EffectiveFrameRate >= 60 ? 1 : 0;
-            BitRateBox.SelectedIndex = IndexOfBitRate(_settings.BitRateMbps);
             CloseToTrayBox.IsChecked = _settings.CloseToTray;
-            AutoAudioBox.IsChecked = _settings.AutoStartAudio;
+            AutoScanBox.IsChecked = _settings.AutoScanOnStart;
         }
         finally
         {
             _loading = false;
         }
-    }
-
-    private static int IndexOfBitRate(int mbps) => mbps switch
-    {
-        4 => 0,
-        16 => 2,
-        24 => 3,
-        _ => 1,
-    };
-
-    private static int BitRateAt(int index) => index switch
-    {
-        0 => 4,
-        2 => 16,
-        3 => 24,
-        _ => 8,
-    };
-
-    private void OnFrameRateChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading)
-        {
-            return;
-        }
-
-        _settings.FrameRate = FrameRateBox.SelectedIndex == 0 ? 30 : 60;
-        Persist();
-    }
-
-    private void OnBitRateChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading)
-        {
-            return;
-        }
-
-        _settings.BitRateMbps = BitRateAt(BitRateBox.SelectedIndex);
-        Persist();
     }
 
     private void OnCloseToTrayChanged(object sender, RoutedEventArgs e)
@@ -86,29 +49,41 @@ public partial class SettingsPage : UserControl
         }
 
         _settings.CloseToTray = CloseToTrayBox.IsChecked == true;
-        Persist();
+        _settings.Save();
+        SavedText.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            "{0}：关闭到托盘 {1}",
+            Strings.Settings_EffectiveHint,
+            _settings.CloseToTray ? "是" : "否");
+        SavedText.Opacity = 0.65;
     }
 
-    private void OnAutoAudioChanged(object sender, RoutedEventArgs e)
+    private void OnAutoScanChanged(object sender, RoutedEventArgs e)
     {
         if (_loading)
         {
             return;
         }
 
-        _settings.AutoStartAudio = AutoAudioBox.IsChecked == true;
-        Persist();
+        _settings.AutoScanOnStart = AutoScanBox.IsChecked == true;
+        _settings.Save();
+        SavedText.Text = Strings.Settings_EffectiveHint;
+        SavedText.Opacity = 0.65;
     }
 
-    private void Persist()
+    /// <summary>在资源管理器里打开本机数据目录（设备列表、设置、日志、锁屏缓存都在这）。</summary>
+    private void OnOpenDataFolderClick(object sender, RoutedEventArgs e)
     {
-        _settings.Save();
-        SavedText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            "{0}：帧率 {1} · 码率 {2} Mbps",
-            Strings.Settings_EffectiveHint,
-            _settings.EffectiveFrameRate,
-            _settings.BitRateMbps);
-        SavedText.Opacity = 0.65;
+        string root = AppPaths.DataRoot;
+        Directory.CreateDirectory(root);
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", root) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            SavedText.Text = ex.Message;
+            SavedText.Opacity = 0.65;
+        }
     }
 }

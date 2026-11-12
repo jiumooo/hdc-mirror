@@ -18,7 +18,7 @@
     TextOptions.TextRenderingMode="ClearType"
     WindowBackdropType="Mica"
     WindowCornerPreference="Round"
-    WindowStartupLocation="CenterScreen">
+    WindowStartupLocation="Manual">
 
     <ui:FluentWindow.InputBindings>
         <KeyBinding Key="Q" Modifiers="Control" Command="{x:Static ApplicationCommands.Close}" />
@@ -114,6 +114,8 @@
                     chrome:WindowChrome.IsHitTestVisibleInChrome="True"
                     FontWeight="SemiBold">
                     <MenuItem x:Name="MenuApp" Padding="8,0">
+                        <MenuItem x:Name="MenuAppDevices" Click="OnMenuDevicesClick" Header="{x:Static res:Strings.Menu_Settings_Devices}" />
+                        <Separator />
                         <MenuItem x:Name="MenuAppCheckUpdate" Click="OnMenuCheckUpdateClick" />
                         <MenuItem x:Name="MenuAppAbout" Click="OnMenuAboutClick" />
                         <Separator />
@@ -123,18 +125,11 @@
                             InputGestureText="Ctrl+Q" />
                     </MenuItem>
 
+                    <!-- 设置：一级菜单项直接进设置页（不再挂下拉，避免「点一下只弹出菜单」） -->
                     <MenuItem
                         x:Name="MenuSettings"
-                        Padding="8,0">
-                        <MenuItem
-                            Click="OnMenuDevicesClick"
-                            Header="{x:Static res:Strings.Menu_Settings_Devices}" />
-                        <MenuItem
-                            Click="OnMenuSettingsClick"
-                            Header="{x:Static res:Strings.Menu_Settings_General}" />
-                        <MenuItem Click="OnMenuKeysClick" Header="{x:Static res:Strings.Menu_Settings_Keys}" />
-                        <MenuItem Header="{x:Static res:Strings.Menu_Settings_Av}" IsEnabled="False" />
-                    </MenuItem>
+                        Padding="8,0"
+                        Click="OnMenuSettingsClick" />
 
                     <MenuItem x:Name="MenuHelp" Padding="8,0">
                         <MenuItem Click="OnMenuDocsClick" Header="{x:Static res:Strings.Menu_Help_Docs}" />
@@ -147,8 +142,9 @@
             </ui:TitleBar.Header>
 
             <ui:TitleBar.TrailingContent>
+                <!-- 与菜单之间、按钮彼此之间都留出间距（原来紧贴在一起） -->
                 <StackPanel
-                    Margin="0,0,8,0"
+                    Margin="14,0,10,0"
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
                     chrome:WindowChrome.IsHitTestVisibleInChrome="True">
@@ -159,11 +155,13 @@
                         Content="&#xE921;" />
                     <Button
                         x:Name="CaptionMaximize"
+                        Margin="6,0,0,0"
                         Click="OnCaptionMaximize"
                         Style="{StaticResource CaptionButtonStyle}"
                         ToolTip="{x:Static res:Strings.Tip_Maximize}"
                         Content="&#xE922;" />
                     <Button
+                        Margin="6,0,0,0"
                         Click="OnCaptionClose"
                         Style="{StaticResource CloseButtonStyle}"
                         ToolTip="{x:Static res:Strings.Tip_Close}"
@@ -177,6 +175,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -242,8 +241,18 @@
             </ComboBox>
 
             <ui:Button
-                x:Name="ConnectButton"
+                x:Name="RefreshButton"
                 Grid.Column="2"
+                Width="32"
+                Height="32"
+                Margin="0,0,8,0"
+                Click="OnRefreshClick"
+                Icon="{ui:SymbolIcon Symbol=ArrowClockwise24}"
+                ToolTip="{x:Static res:Strings.Ui_Refresh}" />
+
+            <ui:Button
+                x:Name="ConnectButton"
+                Grid.Column="3"
                 Height="32"
                 MinWidth="76"
                 Appearance="Primary"
@@ -252,8 +261,88 @@
                 IsEnabled="False" />
         </Grid>
 
-        <!-- 手机屏幕：等比 1260:2720，圆角黑底，不加大外框，只留 8px 呼吸 -->
+        <!-- 内容区：所有菜单页面都在这一格里就地显示，不弹新窗口 -->
         <Grid x:Name="PhoneArea" Grid.Row="2" Margin="0" SizeChanged="OnPhoneAreaSizeChanged">
+
+            <!-- 内容宿主：设置 / 关于 / 支持作者 / 设备管理都挂到 ManageHost 上 -->
+            <Grid
+                x:Name="ContentHost"
+                Margin="14,0,14,12"
+                Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel
+                    Grid.Row="0"
+                    Orientation="Horizontal">
+                    <ui:Button
+                        Height="28"
+                        Padding="10,0"
+                        Click="OnContentBackClick"
+                        Content="{x:Static res:Strings.Ui_Back}"
+                        Icon="{ui:SymbolIcon Symbol=ArrowLeft24}"
+                        ToolTip="{x:Static res:Strings.Ui_Back}" />
+
+                    <!--
+                        一级分栏：只在设置家族（设备管理 / 通用设置 / 按键映射 / 音画与音频）里出现。
+                        帮助里的「支持作者」「使用说明」这类页面不属于设置，进来后整排隐藏，
+                        否则会出现「人在支持作者页、下面却挂着设置分栏」的错位。
+                    -->
+                    <StackPanel
+                        x:Name="SettingsTabs"
+                        Orientation="Horizontal">
+                        <ui:Button
+                            x:Name="TabDevicesButton"
+                            Height="28"
+                            Margin="6,0,0,0"
+                            Padding="10,0"
+                        Click="OnContentTabClick"
+                        Content="{x:Static res:Strings.Menu_Settings_Devices}"
+                        FontSize="12"
+                        FontWeight="Normal"
+                        Tag="devices" />
+                    <ui:Button
+                        x:Name="TabGeneralButton"
+                        Height="28"
+                        Margin="4,0,0,0"
+                        Padding="10,0"
+                        Click="OnContentTabClick"
+                        Content="{x:Static res:Strings.Menu_Settings_General}"
+                        FontSize="12"
+                        FontWeight="Normal"
+                        Tag="general" />
+                    <ui:Button
+                        x:Name="TabKeysButton"
+                        Height="28"
+                        Margin="4,0,0,0"
+                        Padding="10,0"
+                        Click="OnContentTabClick"
+                        Content="{x:Static res:Strings.Menu_Settings_Keys}"
+                        FontSize="12"
+                        FontWeight="Normal"
+                        Tag="keys" />
+                    <ui:Button
+                        x:Name="TabAvButton"
+                        Height="28"
+                        Margin="4,0,0,0"
+                        Padding="10,0"
+                        Click="OnContentTabClick"
+                        Content="{x:Static res:Strings.Menu_Settings_Av}"
+                        FontSize="12"
+                        FontWeight="Normal"
+                        Tag="av" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid
+                    x:Name="ManageHost"
+                    Grid.Row="1"
+                    Margin="0,8,0,0"
+                    ClipToBounds="True" />
+            </Grid>
+
             <Border
                 x:Name="PhoneFrame"
                 HorizontalAlignment="Center"
@@ -261,30 +350,61 @@
                 Background="#FF0B0B0B"
                 CornerRadius="30"
                 MouseLeftButtonDown="OnPhoneFrameMouseDown"
+                RenderTransformOrigin="0,0"
                 ToolTip="{x:Static res:Strings.Dev_DoubleClickConnect}">
+                <Border.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="PhoneScale" ScaleX="1" ScaleY="1" />
+                        <TranslateTransform x:Name="PhoneShift" X="0" Y="0" />
+                    </TransformGroup>
+                </Border.RenderTransform>
                 <Grid>
                     <!--
-                        手机屏幕这一层只放「信息 / 设备管理」两种内容：
+                        手机屏幕这一层只放「信息 / 空态 / 手动连接」：
                         真正的镜像画面搬到独立的手机窗口（MirrorWindow），点「连接」后才出现。
                     -->
-                    <Grid
-                        x:Name="ManageHost"
-                        ClipToBounds="True"
-                        Visibility="Collapsed" />
 
-                    <!-- 未连接：黑屏 + 提示 -->
+                    <!-- 未连接：手机轮廓 + 提示（不用字形，避免缺字体渲染成方块） -->
+                        <Border
+                            Padding="20,16"
+                            Background="#99000000"
+                            CornerRadius="14">
                     <StackPanel
                         x:Name="EmptyState"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
+                        <Border
+                            Width="58"
+                            Height="104"
+                            HorizontalAlignment="Center"
+                            BorderBrush="#2EFFFFFF"
+                            BorderThickness="2"
+                            CornerRadius="12">
+                            <StackPanel VerticalAlignment="Center">
+                                <Border
+                                    Width="22"
+                                    Height="2"
+                                    HorizontalAlignment="Center"
+                                    Background="#2EFFFFFF"
+                                    CornerRadius="1" />
+                                <Border
+                                    Width="2"
+                                    Height="2"
+                                    Margin="0,6,0,0"
+                                    HorizontalAlignment="Center"
+                                    Background="#2EFFFFFF"
+                                    CornerRadius="1" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
+                            Margin="0,18,0,0"
                             HorizontalAlignment="Center"
                             FontSize="16"
                             FontWeight="SemiBold"
                             Foreground="#B4FFFFFF"
                             Text="{x:Static res:Strings.Dev_NoDevice}" />
                         <TextBlock
-                            MaxWidth="240"
+                            MaxWidth="230"
                             Margin="0,8,0,0"
                             TextAlignment="Center"
                             TextWrapping="Wrap"
@@ -292,6 +412,7 @@
                             Foreground="#66FFFFFF"
                             Text="{x:Static res:Strings.Dev_NoDeviceHint}" />
                     </StackPanel>
+                        </Border>
 
                     <!-- 已连接：设备信息九项（画面接 M1b 后再叠加） -->
                     <!-- 已连接：设备信息九项，整块在手机屏内垂直居中 -->
@@ -361,6 +482,17 @@
                     </Border>
                 </Grid>
             </Border>
+
+            <!-- 内容打开时手机屏缩成左下角缩略屏，这行提示告诉用户怎么回去 -->
+            <TextBlock
+                x:Name="ThumbnailHint"
+                Margin="104,0,0,20"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                FontSize="11"
+                Foreground="#99000000"
+                Text="{x:Static res:Strings.Ui_BackToPhone}"
+                Visibility="Collapsed" />
         </Grid>
     </Grid>
 </ui:FluentWindow>

@@ -1,0 +1,58 @@
+<UserControl
+    x:Class="HdcMirror.App.Views.SupportPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:res="clr-namespace:HdcMirror.App.Resources"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <!-- 支持作者：和别的页面一样显示在主窗口内容区里，不弹新窗口 -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20,8,20,124">
+            <TextBlock
+                FontSize="20"
+                FontWeight="Bold"
+                Text="{x:Static res:Strings.Supporter_Title}" />
+
+            <TextBlock
+                Margin="0,6,0,14"
+                FontSize="12"
+                Opacity="0.7"
+                Text="{x:Static res:Strings.Supporter_Note}"
+                TextWrapping="Wrap" />
+
+            <Border
+                Width="176"
+                Height="176"
+                HorizontalAlignment="Center"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="12">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="140"
+                    FontSize="12"
+                    Opacity="0.6"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap"
+                    Text="{x:Static res:Strings.Supporter_QrPlaceholder}" />
+            </Border>
+
+            <TextBlock
+                Margin="0,18,0,8"
+                FontSize="14"
+                FontWeight="SemiBold"
+                Text="{x:Static res:Strings.Supporter_ListTitle}" />
+
+            <Border
+                Padding="16"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="8">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Opacity="0.6"
+                    Text="{x:Static res:Strings.Supporter_Empty}" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

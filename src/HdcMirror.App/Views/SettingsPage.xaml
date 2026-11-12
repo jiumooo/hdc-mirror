@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="HdcMirror.App.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,11 +6,11 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="20,8,20,20">
+        <StackPanel Style="{StaticResource PageRootStyle}">
             <TextBlock
                 FontSize="20"
                 FontWeight="Bold"
-                Text="{x:Static res:Strings.Nav_Settings}" />
+                Text="{x:Static res:Strings.Menu_Settings_General}" />
 
             <TextBlock
                 Margin="0,6,0,14"
@@ -19,77 +19,8 @@
                 Text="{x:Static res:Strings.Settings_EffectiveHint}"
                 TextWrapping="Wrap" />
 
-            <!--  画质  -->
-            <Border
-                Padding="16"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                CornerRadius="8">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_Quality}" />
-
-                    <Grid Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_FrameRate}" />
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Opacity="0.6"
-                                Text="{x:Static res:Strings.Settings_FrameRateHint}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="FrameRateBox"
-                            Grid.Column="1"
-                            Height="32"
-                            VerticalAlignment="Center"
-                            SelectionChanged="OnFrameRateChanged">
-                            <ComboBoxItem Content="30" />
-                            <ComboBoxItem Content="60" />
-                        </ComboBox>
-                    </Grid>
-
-                    <Grid Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_BitRate}" />
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Opacity="0.6"
-                                Text="{x:Static res:Strings.Settings_BitRateHint}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="BitRateBox"
-                            Grid.Column="1"
-                            Height="32"
-                            VerticalAlignment="Center"
-                            SelectionChanged="OnBitRateChanged">
-                            <ComboBoxItem Content="4" />
-                            <ComboBoxItem Content="8" />
-                            <ComboBoxItem Content="16" />
-                            <ComboBoxItem Content="24" />
-                        </ComboBox>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
             <!--  行为  -->
-            <Border
-                Margin="0,12,0,0"
-                Padding="16"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                CornerRadius="8">
+            <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock
                         FontSize="14"
@@ -104,27 +35,51 @@
                         Unchecked="OnCloseToTrayChanged" />
                 </StackPanel>
             </Border>
-
-            <!--  音频  -->
-            <Border
-                Margin="0,12,0,0"
-                Padding="16"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                CornerRadius="8">
+            <!--  启动与扫描  -->
+            <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock
                         FontSize="14"
                         FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_Audio}" />
+                        Text="{x:Static res:Strings.Settings_Section_Startup}" />
                     <CheckBox
-                        x:Name="AutoAudioBox"
+                        x:Name="AutoScanBox"
                         Margin="0,14,0,0"
-                        Checked="OnAutoAudioChanged"
-                        Content="{x:Static res:Strings.Settings_AutoAudio}"
+                        Checked="OnAutoScanChanged"
+                        Content="{x:Static res:Strings.Settings_AutoScan}"
                         FontSize="13"
-                        Unchecked="OnAutoAudioChanged" />
+                        Unchecked="OnAutoScanChanged" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="12"
+                        Opacity="0.72"
+                        Text="{x:Static res:Strings.Settings_AutoScanHint}"
+                        TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
+
+            <!--  本机数据  -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Text="{x:Static res:Strings.Settings_Section_Data}" />
+                    <ui:Button
+                        x:Name="OpenDataFolderButton"
+                        Margin="0,14,0,0"
+                        Height="32"
+                        Click="OnOpenDataFolderClick"
+                        Content="{x:Static res:Strings.Settings_OpenDataFolder}" />
+                    <TextBlock
+                        Margin="0,10,0,0"
+                        FontSize="12"
+                        Opacity="0.72"
+                        Text="{x:Static res:Strings.Settings_DataFolderHint}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
 
             <TextBlock
                 x:Name="SavedText"

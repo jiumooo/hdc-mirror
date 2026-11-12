@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // 蓝牙音频接收子进程的父侧管家。
 //
 // 子进程（HdcMirror.Audio.exe）负责真正去 Open AudioPlaybackConnection，
@@ -8,6 +8,7 @@
 
 using System.Diagnostics;
 using System.IO;
+using HdcMirror.Core.Diagnostics;
 
 namespace HdcMirror.App.Audio;
 
@@ -39,6 +40,12 @@ public sealed class AudioSinkHost : IDisposable
     private readonly object _gate = new();
     private Process? _process;
 
+    /// <summary>
+    /// 诊断日志出口。默认写本机滚动日志文件（<c>%LOCALAPPDATA%\HdcMirror\logs</c>），
+    /// 设置页与这里共用一份，避免开多个写同一文件的句柄。
+    /// </summary>
+    public ILogSink Log { get; set; } = new FileLogSink();
+
     /// <summary>状态变化回调：参数为「新状态」与「本机默认播放设备提示 / 错误码」。</summary>
     public event Action<AudioSinkState, string>? StateChanged;
 
@@ -51,6 +58,25 @@ public sealed class AudioSinkHost : IDisposable
     /// <summary>子进程可执行文件的绝对路径（随程序一起分发在 <c>audio\</c> 下）。</summary>
     public static string ExecutablePath =>
         Path.Combine(AppContext.BaseDirectory, "audio", "HdcMirror.Audio.exe");
+
+    /// <summary>音频接收子进程的 PID；未运行时为 0。用来把本应用音量钉到 100%。</summary>
+    public int ProcessId
+    {
+        get
+        {
+            lock (_gate)
+            {
+                try
+                {
+                    return _process is { HasExited: false } ? _process.Id : 0;
+                }
+                catch (InvalidOperationException)
+                {
+                    return 0;
+                }
+            }
+        }
+    }
 
     /// <summary>子进程是否还在跑。</summary>
     public bool IsRunning
@@ -202,6 +228,8 @@ public sealed class AudioSinkHost : IDisposable
                 break;
             case "OPENED":
                 LastError = null;
+                ApplyVolumePolicy();
+                ApplyOutputDevice();
                 SetState(AudioSinkState.Connected, string.Empty);
                 break;
             case "CLOSED":
@@ -225,8 +253,64 @@ public sealed class AudioSinkHost : IDisposable
                     LastError = line["ERROR ".Length..].Trim();
                     SetState(AudioSinkState.Failed, LastError);
                 }
+                else if (line.StartsWith("DENIED ", StringComparison.Ordinal))
+                {
+                    // 系统级拒绝（DeniedBySystem）：重试没有意义，只能去蓝牙设置里处理。
+                    LastError = line["DENIED ".Length..].Trim();
+                    SetState(AudioSinkState.Failed, LastError);
+                }
+                else if (line.StartsWith("LOG ", StringComparison.Ordinal))
+                {
+                    // 子进程的自述日志（例如 StartAsync 失败但继续尝试），不改变状态。
+                }
 
                 break;
+        }
+    }
+
+    /// <summary>
+    /// 音量策略：默认「以手机音量为主」—— 本应用会话钉在 100%，音量完全由手机侧决定，
+    /// 避免手机与电脑两级衰减。用户关掉这个开关时才用自己设的电脑侧音量。
+    /// </summary>
+    private void ApplyVolumePolicy()
+    {
+        int pid = ProcessId;
+        if (pid <= 0)
+        {
+            return;
+        }
+
+        double level = Services.AppSettings.Current.AudioFollowPhone
+            ? 1d
+            : Services.AppSettings.Current.AudioAppVolume;
+
+        AudioVolumeService.SetProcessVolume(pid, level);
+    }
+
+    /// <summary>
+    /// 输出设备策略：用户选了具体设备就只把这一个子进程切过去，
+    /// 没选（空串）就跟随系统默认，什么都不做。
+    /// 接口不可用时只写日志，播放链路照旧从默认设备出声。
+    /// </summary>
+    private void ApplyOutputDevice()
+    {
+        int pid = ProcessId;
+        if (pid <= 0)
+        {
+            return;
+        }
+
+        string deviceId = Services.AppSettings.Current.AudioOutputDeviceId;
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            Log.Write(LogLevel.Info, "audio", "输出设备：跟随系统默认");
+            return;
+        }
+
+        if (AudioDeviceService.TryRouteProcessToDevice(pid, deviceId, Log))
+        {
+            Log.Write(LogLevel.Info, "audio", "接收端输出已切到所选设备（PID "
+                + pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + "）");
         }
     }
 

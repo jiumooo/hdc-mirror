@@ -43,6 +43,14 @@ public sealed record HdcDeviceInfo
     /// <summary>物理内存，形如 <c>11.32 GiB (11869524 kB)</c>。</summary>
     public string Memory { get; init; } = string.Empty;
 
+    /// <summary>
+    /// 屏幕支持的刷新率（去重、升序），取自 <c>hidumper -s RenderService -a screen</c> 的
+    /// <c>supportedMode[n]</c>；读不到时为空列表，界面按「只给 30 / 60」兜底。
+    /// </summary>
+    public IReadOnlyList<int> SupportedRefreshRates { get; init; } = Array.Empty<int>();
+
+    /// <summary>当前生效的刷新率（<c>activeMode</c>）；读不到为 0。</summary>
+    public int ActiveRefreshRate { get; init; }
     /// <summary>读取失败而留空的字段名（<see cref="HdcDeviceInfo"/> 的属性名）。</summary>
     public IReadOnlyList<string> MissingFields { get; init; } = Array.Empty<string>();
 
@@ -52,5 +60,6 @@ public sealed record HdcDeviceInfo
     /// <inheritdoc />
     public override string ToString()
         => $"Name={Name}; Brand={Brand}; Model={Model}; Harmony={HarmonyVersion}; Kernel={KernelVersion}; " +
-           $"Cpu={Cpu}; Resolution={Resolution}; Memory={Memory}; Missing={MissingFields.Count}";
+           $"Cpu={Cpu}; Resolution={Resolution}; Memory={Memory}; ActiveRate={ActiveRefreshRate}; " +
+           $"Rates={string.Join('/', SupportedRefreshRates)}; Missing={MissingFields.Count}";
 }

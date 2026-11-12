@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,6 +81,10 @@ internal sealed class MirrorSession : IDisposable
     private long _firstFrameMilliseconds = -1;
     private long _lastFrameTimestamp;
     private long _decodeErrors;
+    private long _decodeMsSum;
+    private long _decodeMsMax;
+    private long _decodeStatsStart;
+    private int _requestedFrameRate = 60;
     private int _running;
     private int _disposed;
     private byte[] _configured = Array.Empty<byte>();
@@ -292,16 +297,27 @@ internal sealed class MirrorSession : IDisposable
 
             Report(MirrorStatus.Starting, Strings.Status_Mirror_PreparingDaemon);
             _deviceRunner = new HdcRunner(hdcPath: null, deviceSerial: device.Serial, log: _log, commandTimeout: TimeSpan.FromSeconds(60));
+            int requestedRate = AppSettings.Current.EffectiveFrameRate > 0
+                ? AppSettings.Current.EffectiveFrameRate
+                : DisplayModes.AutoFrameRate;
+            _requestedFrameRate = requestedRate;
+
             _daemon = new ScrcpyDaemon(
                 _deviceRunner,
                 new ScrcpyDaemonOptions
                 {
                     JarPath = ResolveJarPath(),
-                    // 每次连接都现读设置，用户在设置页改完，下次连接即生效。
-                    FrameRate = AppSettings.Current.EffectiveFrameRate,
-                    BitRate = AppSettings.Current.EffectiveBitRate,
+                    // 华为 daemon 的 -scale 只接受 1：传 0.5 / 2 / 50 都会让守护进程起不来（实测三次），
+                    // 所以分辨率固定为手机原生，画质百分比改为按比例下调编码码率（100% = 设置里的码率上限）。
+                    Scale = 1d,
+                    FrameRate = requestedRate,
+                    BitRate = Math.Max(1_000_000, AppSettings.Current.EffectiveBitRate),
                 },
                 _log);
+
+            // 端口转发不依赖设备侧监听者：先提交，让它与 2~3 秒的 daemon 启动并行，省一次往返。
+            _forwarder = new HdcPortForwarder(_deviceRunner, _log);
+            Task<int> forwardTask = _forwarder.EstablishAsync(cancellationToken);
 
             if (!await _daemon.EnsureRunningAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -314,8 +330,7 @@ internal sealed class MirrorSession : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
 
             Report(MirrorStatus.Starting, Strings.Status_Mirror_Forwarding);
-            _forwarder = new HdcPortForwarder(_deviceRunner, _log);
-            var port = await _forwarder.EstablishAsync(cancellationToken).ConfigureAwait(false);
+            int port = await forwardTask.ConfigureAwait(false);
             if (port <= 0)
             {
                 _log.Warn(Category, "端口转发建立失败，稍后重试。");
@@ -338,6 +353,9 @@ internal sealed class MirrorSession : IDisposable
             _log.Info(Category, $"帧流已建立（本地端口 {port}）。");
 
             var consecutiveErrors = 0;
+            _decodeStatsStart = _clock.ElapsedMilliseconds;
+            _decodeMsSum = 0;
+            _decodeMsMax = 0;
             await foreach (var frame in _client.ReadFramesAsync(cancellationToken).ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -357,6 +375,7 @@ internal sealed class MirrorSession : IDisposable
 
                 try
                 {
+                    long decodeStart = _clock.ElapsedMilliseconds;
                     if (!_decoder.TryDecode(frame.AnnexB, frame.Pts, out var decoded) || decoded is null)
                     {
                         continue;
@@ -370,6 +389,27 @@ internal sealed class MirrorSession : IDisposable
                         decoded.Stride);
 
                     var count = Interlocked.Increment(ref _decoded);
+
+                    // 解码节奏统计：定位「手机 60 fps、软件只有 30」到底是码流没给够还是解码跟不上。
+                    _decodeMsSum += _clock.ElapsedMilliseconds - decodeStart;
+                    _decodeMsMax = Math.Max(_decodeMsMax, _clock.ElapsedMilliseconds - decodeStart);
+                    if (count % 120 == 0)
+                    {
+                        double span = Math.Max(1, _clock.ElapsedMilliseconds - _decodeStatsStart);
+                        _log.Info(Category, string.Format(
+                            CultureInfo.InvariantCulture,
+                            "解码统计：近 {0:0.0} 秒 {1} 帧 ≈ {2:0.0} fps，平均 {3:0.0} ms、最慢 {4} ms；请求 {5} Hz、码率 {6} Mbps。",
+                            span / 1000d,
+                            120,
+                            120 * 1000d / span,
+                            _decodeMsSum / 120d,
+                            _decodeMsMax,
+                            _requestedFrameRate,
+                            AppSettings.Current.EffectiveBitRate / 1_000_000d));
+                        _decodeMsSum = 0;
+                        _decodeMsMax = 0;
+                        _decodeStatsStart = _clock.ElapsedMilliseconds;
+                    }
                     Interlocked.Exchange(ref _lastFrameTimestamp, _clock.ElapsedMilliseconds);
                     if (count == 1)
                     {

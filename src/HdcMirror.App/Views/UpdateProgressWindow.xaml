@@ -64,7 +64,7 @@
                 FontSize="11"
                 TextWrapping="Wrap"
                 Foreground="#77000000"
-                Text="{x:Static res:Strings.Upd_CancelHint}" />
+                Text="{x:Static res:Strings.Upd_Hint}" />
 
             <Button
                 x:Name="CancelButton"

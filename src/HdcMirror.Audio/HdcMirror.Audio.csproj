@@ -6,6 +6,8 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>HdcMirror.Audio</RootNamespace>
     <AssemblyName>HdcMirror.Audio</AssemblyName>
+    <!-- 用软件自己的图标：否则 Windows 音量合成器里会显示默认的音频设备图标（一个麦克风）。 -->
+    <ApplicationIcon>..\HdcMirror.App\Assets\app.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>

@@ -113,14 +113,6 @@ public partial class UpdateProgressWindow : Window
         }
 
         SpeedText.Text = string.Format(CultureInfo.CurrentCulture, Strings.Upd_SpeedFormat, speed, remain);
-
-        if (progress.ResumedFrom > 0)
-        {
-            HintText.Text = string.Format(
-                CultureInfo.CurrentCulture,
-                Strings.Upd_ResumeNoticeFormat,
-                FormatBytes(progress.ResumedFrom));
-        }
     }
 
     /// <summary>把字节数格式化成 MB / GB。</summary>

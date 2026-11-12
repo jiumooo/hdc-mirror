@@ -275,8 +275,6 @@ public static class Strings
 
     /// <summary>界面文案 <c>DevMgr_Delete</c>：删除已记住的设备。</summary>
     public static string DevMgr_Delete => Get(nameof(DevMgr_Delete));
-
-    /// <summary>界面文案 <c>DevMgr_Hint</c>：设备管理页：隐私说明。</summary>
     public static string DevMgr_Hint => Get(nameof(DevMgr_Hint));
 
     /// <summary>界面文案 <c>Dev_DoubleClickConnect</c>：设备行悬停提示。</summary>
@@ -453,8 +451,6 @@ public static class Strings
     /// <summary>界面文案 <c>Upd_RemainUnknown</c>：更新下载进度</summary>
     public static string Upd_RemainUnknown => Get(nameof(Upd_RemainUnknown));
 
-    /// <summary>界面文案 <c>Upd_ResumeFormat</c>：更新下载进度</summary>
-    public static string Upd_ResumeFormat => Get(nameof(Upd_ResumeFormat));
 
     /// <summary>界面文案 <c>Upd_Preparing</c>：更新下载进度</summary>
     public static string Upd_Preparing => Get(nameof(Upd_Preparing));
@@ -468,6 +464,9 @@ public static class Strings
     /// <summary>界面文案 <c>Upd_CancelHint</c>：更新下载进度</summary>
     public static string Upd_CancelHint => Get(nameof(Upd_CancelHint));
 
+    /// <summary>界面文案 <c>Upd_Hint</c>：更新下载进度。</summary>
+    public static string Upd_Hint => Get(nameof(Upd_Hint));
+
     /// <summary>界面文案 <c>Upd_Restarting</c>：更新下载进度</summary>
     public static string Upd_Restarting => Get(nameof(Upd_Restarting));
 
@@ -479,4 +478,216 @@ public static class Strings
 
     /// <summary>界面文案 <c>Upd_ResumeNoticeFormat</c>：更新下载进度</summary>
     public static string Upd_ResumeNoticeFormat => Get(nameof(Upd_ResumeNoticeFormat));
+
+    /// <summary>界面文案 <c>Ui_Back</c>：就地页面的返回按钮。</summary>
+    public static string Ui_Back => Get(nameof(Ui_Back));
+
+    /// <summary>界面文案 <c>Ui_BackToPhone</c>：缩略屏旁的提示。</summary>
+    public static string Ui_BackToPhone => Get(nameof(Ui_BackToPhone));
+
+    /// <summary>界面文案 <c>Dev_ScanFillName</c>：扫描后补读设备名称。</summary>
+    public static string Dev_ScanFillName => Get(nameof(Dev_ScanFillName));
+
+    /// <summary>界面文案 <c>Settings_AudioReceive</c>：音频接收（手机 → 电脑）</summary>
+    public static string Settings_AudioReceive => Get(nameof(Settings_AudioReceive));
+
+    /// <summary>界面文案 <c>Settings_AudioRoleHint</c>：手机是发射端，电脑是接收端。音频由 Windows 音频引擎接手，再从默认播放设备（你的音响）放出来；投射期间手机会静音。</summary>
+    public static string Settings_AudioRoleHint => Get(nameof(Settings_AudioRoleHint));
+
+    /// <summary>界面文案 <c>Settings_AudioStart</c>：开启接收</summary>
+    public static string Settings_AudioStart => Get(nameof(Settings_AudioStart));
+
+    /// <summary>界面文案 <c>Settings_AudioStop</c>：停止接收</summary>
+    public static string Settings_AudioStop => Get(nameof(Settings_AudioStop));
+
+    /// <summary>界面文案 <c>Settings_AudioOpenSound</c>：打开声音设置</summary>
+    public static string Settings_AudioOpenSound => Get(nameof(Settings_AudioOpenSound));
+
+    /// <summary>界面文案 <c>Settings_AudioState_Idle</c>：未开启</summary>
+    public static string Settings_AudioState_Idle => Get(nameof(Settings_AudioState_Idle));
+
+    /// <summary>界面文案 <c>Settings_AudioState_Starting</c>：正在启动接收端…</summary>
+    public static string Settings_AudioState_Starting => Get(nameof(Settings_AudioState_Starting));
+
+    /// <summary>界面文案 <c>Settings_AudioState_Waiting</c>：已在等待手机：请下拉手机控制中心 →「投射音频」→ 选择本机</summary>
+    public static string Settings_AudioState_Waiting => Get(nameof(Settings_AudioState_Waiting));
+
+    /// <summary>界面文案 <c>Settings_AudioState_ConnectedFormat</c>：已连接，声音从电脑默认输出设备播放。{0}</summary>
+    public static string Settings_AudioState_ConnectedFormat => Get(nameof(Settings_AudioState_ConnectedFormat));
+
+    /// <summary>界面文案 <c>Settings_AudioState_NoDevice</c>：没有找到已配对的蓝牙手机：先在 Windows 蓝牙设置里配对你的手机</summary>
+    public static string Settings_AudioState_NoDevice => Get(nameof(Settings_AudioState_NoDevice));
+
+    /// <summary>界面文案 <c>Settings_AudioState_FailedFormat</c>：开启失败：{0}</summary>
+    public static string Settings_AudioState_FailedFormat => Get(nameof(Settings_AudioState_FailedFormat));
+
+    /// <summary>界面文案 <c>Settings_AudioSteps</c>：音频投射的四步使用说明（多行文本）</summary>
+    public static string Settings_AudioSteps => Get(nameof(Settings_AudioSteps));
+
+    /// <summary>界面文案 <c>Settings_LockShot</c>：锁屏画面</summary>
+    public static string Settings_LockShot => Get(nameof(Settings_LockShot));
+
+    /// <summary>界面文案 <c>Settings_LockShotTip</c>：定时抓手机画面当背景的说明</summary>
+    public static string Settings_LockShotTip => Get(nameof(Settings_LockShotTip));
+
+    /// <summary>界面文案 <c>Settings_LockShotAuto</c>：每分钟自动抓取</summary>
+    public static string Settings_LockShotAuto => Get(nameof(Settings_LockShotAuto));
+
+    /// <summary>界面文案 <c>Settings_LockShotNow</c>：立即抓取</summary>
+    public static string Settings_LockShotNow => Get(nameof(Settings_LockShotNow));
+
+    /// <summary>界面文案 <c>Settings_LockShotOn</c>：自动抓取已开启</summary>
+    public static string Settings_LockShotOn => Get(nameof(Settings_LockShotOn));
+
+    /// <summary>界面文案 <c>Settings_LockShotOff</c>：自动抓取已关闭</summary>
+    public static string Settings_LockShotOff => Get(nameof(Settings_LockShotOff));
+
+    /// <summary>界面文案 <c>Settings_LockShotBusy</c>：正在抓取…</summary>
+    public static string Settings_LockShotBusy => Get(nameof(Settings_LockShotBusy));
+
+    /// <summary>界面文案 <c>Settings_LockShotOk</c>：已更新：{0}</summary>
+    public static string Settings_LockShotOk => Get(nameof(Settings_LockShotOk));
+
+    /// <summary>界面文案 <c>Settings_LockShotFail</c>：抓取失败（手机可能处于熄屏状态）</summary>
+    public static string Settings_LockShotFail => Get(nameof(Settings_LockShotFail));
+
+    /// <summary>界面文案 <c>Settings_LockShotNoDevice</c>：还没选中设备</summary>
+    public static string Settings_LockShotNoDevice => Get(nameof(Settings_LockShotNoDevice));
+    /// <summary>按键映射 <c>Keys_MapTip</c></summary>
+    public static string Keys_MapTip => Get(nameof(Keys_MapTip));
+
+    /// <summary>按键映射 <c>Keys_Add</c></summary>
+    public static string Keys_Add => Get(nameof(Keys_Add));
+
+    /// <summary>按键映射 <c>Keys_Save</c></summary>
+    public static string Keys_Save => Get(nameof(Keys_Save));
+
+    /// <summary>按键映射 <c>Keys_SavedFormat</c></summary>
+    public static string Keys_SavedFormat => Get(nameof(Keys_SavedFormat));
+
+    /// <summary>按键映射 <c>Keys_PressHint</c></summary>
+    public static string Keys_PressHint => Get(nameof(Keys_PressHint));
+
+    /// <summary>按键映射 <c>Keys_Delete</c></summary>
+    public static string Keys_Delete => Get(nameof(Keys_Delete));
+
+    /// <summary>按键映射 <c>KeyAct_Home</c></summary>
+    public static string KeyAct_Home => Get(nameof(KeyAct_Home));
+
+    /// <summary>按键映射 <c>KeyAct_Back</c></summary>
+    public static string KeyAct_Back => Get(nameof(KeyAct_Back));
+
+    /// <summary>按键映射 <c>KeyAct_Recent</c></summary>
+    public static string KeyAct_Recent => Get(nameof(KeyAct_Recent));
+
+    /// <summary>按键映射 <c>KeyAct_Power</c></summary>
+    public static string KeyAct_Power => Get(nameof(KeyAct_Power));
+
+    /// <summary>按键映射 <c>KeyAct_VolumeUp</c></summary>
+    public static string KeyAct_VolumeUp => Get(nameof(KeyAct_VolumeUp));
+
+    /// <summary>按键映射 <c>KeyAct_VolumeDown</c></summary>
+    public static string KeyAct_VolumeDown => Get(nameof(KeyAct_VolumeDown));
+
+    /// <summary>按键映射 <c>KeyAct_Enter</c></summary>
+    public static string KeyAct_Enter => Get(nameof(KeyAct_Enter));
+
+    /// <summary>按键映射 <c>KeyAct_Backspace</c></summary>
+    public static string KeyAct_Backspace => Get(nameof(KeyAct_Backspace));
+
+    /// <summary>按键映射 <c>KeyAct_Tab</c></summary>
+    public static string KeyAct_Tab => Get(nameof(KeyAct_Tab));
+
+    /// <summary>按键映射 <c>KeyAct_Up</c></summary>
+    public static string KeyAct_Up => Get(nameof(KeyAct_Up));
+
+    /// <summary>按键映射 <c>KeyAct_Down</c></summary>
+    public static string KeyAct_Down => Get(nameof(KeyAct_Down));
+
+    /// <summary>按键映射 <c>KeyAct_Left</c></summary>
+    public static string KeyAct_Left => Get(nameof(KeyAct_Left));
+
+    /// <summary>按键映射 <c>KeyAct_Right</c></summary>
+    public static string KeyAct_Right => Get(nameof(KeyAct_Right));
+    /// <summary>音量 <c>Settings_Volume</c></summary>
+    public static string Settings_Volume => Get(nameof(Settings_Volume));
+
+    /// <summary>音量 <c>Settings_VolumeFollow</c></summary>
+    public static string Settings_VolumeFollow => Get(nameof(Settings_VolumeFollow));
+
+    /// <summary>音量 <c>Settings_VolumeFollowHint</c></summary>
+    public static string Settings_VolumeFollowHint => Get(nameof(Settings_VolumeFollowHint));
+
+    /// <summary>音量 <c>Settings_VolumeHintOn</c></summary>
+    public static string Settings_VolumeHintOn => Get(nameof(Settings_VolumeHintOn));
+
+    /// <summary>音量 <c>Settings_VolumeHintOff</c></summary>
+    public static string Settings_VolumeHintOff => Get(nameof(Settings_VolumeHintOff));
+    /// <summary>界面文案 <c>Settings_Section_Startup</c></summary>
+    public static string Settings_Section_Startup => Get(nameof(Settings_Section_Startup));
+
+    /// <summary>界面文案 <c>Settings_AutoScan</c></summary>
+    public static string Settings_AutoScan => Get(nameof(Settings_AutoScan));
+
+    /// <summary>界面文案 <c>Settings_AutoScanHint</c></summary>
+    public static string Settings_AutoScanHint => Get(nameof(Settings_AutoScanHint));
+
+    /// <summary>界面文案 <c>Settings_Section_Data</c></summary>
+    public static string Settings_Section_Data => Get(nameof(Settings_Section_Data));
+
+    /// <summary>界面文案 <c>Settings_OpenDataFolder</c></summary>
+    public static string Settings_OpenDataFolder => Get(nameof(Settings_OpenDataFolder));
+
+    /// <summary>界面文案 <c>Settings_DataFolderHint</c></summary>
+    public static string Settings_DataFolderHint => Get(nameof(Settings_DataFolderHint));
+
+    /// <summary>界面文案 <c>Settings_FrameRateAuto</c></summary>
+    public static string Settings_FrameRateAuto => Get(nameof(Settings_FrameRateAuto));
+
+    /// <summary>连接方式：无线</summary>
+    public static string Link_Wireless => Get(nameof(Link_Wireless));
+
+    /// <summary>连接方式：有线</summary>
+    public static string Link_Usb => Get(nameof(Link_Usb));
+    /// <summary>界面文案 <c>Settings_QualityHint</c></summary>
+    public static string Settings_QualityHint => Get(nameof(Settings_QualityHint));
+
+    /// <summary>界面文案 <c>Settings_QualityScaledFormat</c></summary>
+    public static string Settings_QualityScaledFormat => Get(nameof(Settings_QualityScaledFormat));
+
+    /// <summary>界面文案 <c>Settings_Preset</c></summary>
+    public static string Settings_Preset => Get(nameof(Settings_Preset));
+
+    /// <summary>界面文案 <c>Settings_PresetHint</c></summary>
+    public static string Settings_PresetHint => Get(nameof(Settings_PresetHint));
+
+    /// <summary>界面文案 <c>Preset_Clear</c></summary>
+    public static string Preset_Clear => Get(nameof(Preset_Clear));
+
+    /// <summary>界面文案 <c>Preset_Balanced</c></summary>
+    public static string Preset_Balanced => Get(nameof(Preset_Balanced));
+
+    /// <summary>界面文案 <c>Preset_Smooth</c></summary>
+    public static string Preset_Smooth => Get(nameof(Preset_Smooth));
+
+    /// <summary>界面文案 <c>Preset_Custom</c></summary>
+    public static string Preset_Custom => Get(nameof(Preset_Custom));
+
+    /// <summary>界面文案 <c>Preset_Ultra</c></summary>
+    public static string Preset_Ultra => Get(nameof(Preset_Ultra));
+
+    /// <summary>界面文案 <c>Preset_High</c></summary>
+    public static string Preset_High => Get(nameof(Preset_High));
+
+    /// <summary>界面文案 <c>Preset_Balanced2</c></summary>
+    public static string Preset_Balanced2 => Get(nameof(Preset_Balanced2));
+
+    /// <summary>界面文案 <c>Settings_AudioOutput</c>：播放设备</summary>
+    public static string Settings_AudioOutput => Get(nameof(Settings_AudioOutput));
+
+    /// <summary>界面文案 <c>Settings_AudioOutputDefault</c>：系统默认输出</summary>
+    public static string Settings_AudioOutputDefault => Get(nameof(Settings_AudioOutputDefault));
+
+    /// <summary>界面文案 <c>Settings_AudioOutputHint</c>：只影响本程序，不改系统默认设备</summary>
+    public static string Settings_AudioOutputHint => Get(nameof(Settings_AudioOutputHint));
 }

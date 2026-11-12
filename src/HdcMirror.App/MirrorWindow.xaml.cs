@@ -15,6 +15,7 @@ using System.Windows.Threading;
 using HdcMirror.App.Audio;
 using HdcMirror.App.Resources;
 using HdcMirror.App.Services;
+using KeyBinding = HdcMirror.App.Services.KeyBinding;
 using HdcMirror.App.Video;
 using HdcMirror.App.Views;
 using HdcMirror.Core;
@@ -98,6 +99,9 @@ public partial class MirrorWindow
     private int _fps;
 
     /// <summary>当前画面宽高比（宽 ÷ 高），随真实帧更新。</summary>
+    /// <summary>开窗前由主窗口指定的初始位置与大小（DIP）；为空则沿用 XAML 里的默认尺寸。</summary>
+    public Rect? InitialBounds { get; set; }
+
     private double _aspect = 1260d / 2720d;
 
     /// <summary>防重入：代码在改窗口尺寸时不要再触发比例校正。</summary>
@@ -107,8 +111,8 @@ public partial class MirrorWindow
     private HdcRunner? _inputRunner;
     private readonly HdcDevice _device;
 
-    /// <summary>蓝牙音频接收器（独立子进程，见 Audio\AudioSinkHost.cs）。</summary>
-    private readonly AudioSinkHost _audio = new();
+    /// <summary>蓝牙音频接收器：与「音画与音频」设置页共用同一实例（见 Audio\AudioSinkHub.cs）。</summary>
+    private readonly AudioSinkHost _audio = AudioSinkHub.Instance;
 
     /// <summary>鼠标按住中（还没抬起、也没取消）。抬起后立刻置 false，之后的 move 一律不注入。</summary>
     private bool _pressed;
@@ -235,12 +239,14 @@ public partial class MirrorWindow
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        SetLinkBadge();
         ApplyFrameClip();
 
         // 还没出画面：先把锁屏 / 最后一帧 + 设备信息铺上，别只给一块纯黑。
         ShowIdleLayer();
         _ = FillIdleInfoAsync();
 
+        ApplyInitialBounds();
         FitWindowToAspect(keepWidth: true);
         ClampWindowToWorkArea();
         StartMirror();
@@ -256,7 +262,10 @@ public partial class MirrorWindow
         _session = null;
         session?.Dispose();
         _ = DisposeInputAsync();
-        _audio.Dispose();
+        // 不 Dispose：接收器是进程级单例，设置页还在用它；只退订事件，避免窗口对象被吊住。
+        _audio.StateChanged -= OnAudioStateChanged;
+
+        RememberGeometry();
     }
 
     /// <summary>启动镜像会话：解码在后台，UI 线程只按定时器取最新一帧。</summary>
@@ -322,13 +331,12 @@ public partial class MirrorWindow
             _screenWidth = visibleWidth;
             _screenHeight = visibleHeight;
 
-            // 画面比例跟着真实帧走（设备转成横屏时窗口也跟着变宽，控制条仍在上面）。
+            // 画面比例跟着真实帧走：设备转屏时按新比例换尺寸，中心点保持不动。
             double aspect = visibleWidth / (double)visibleHeight;
             if (Math.Abs(aspect - _aspect) > 0.001)
             {
                 _aspect = aspect;
-                FitWindowToAspect(keepWidth: false);
-                ClampWindowToWorkArea();
+                SwitchOrientation();
             }
         }
 
@@ -516,6 +524,11 @@ public partial class MirrorWindow
             _fps));
     }
 
+    /// <summary>左下角一直显示连接方式（无线 / 有线），帧率紧随其后。</summary>
+    private void SetLinkBadge()
+    {
+        LinkText.Text = _device.IsWireless ? Strings.Link_Wireless : Strings.Link_Usb;
+    }
     private void ShowStatus(string text)
     {
         StatusText.Text = text;
@@ -822,6 +835,8 @@ public partial class MirrorWindow
     {
         bool pinned = PinButton.IsChecked == true;
         Topmost = pinned;
+        // 未置顶用空心图钉（E718），置顶用实心图钉（E840）—— 一眼能看出状态，不用靠颜色猜。
+        PinButton.Content = pinned ? "\uE840" : "\uE718";
         PinButton.ToolTip = pinned ? Strings.Ui_PinOff : Strings.Ui_Pin;
         _log.Write(LogLevel.Info, "App.Window", pinned ? "窗口置顶=开" : "窗口置顶=关");
     }
@@ -848,13 +863,73 @@ public partial class MirrorWindow
 
     // ── 页面覆盖层（设备管理 / 设置不再弹新窗口）───────────────────
 
-    private void OnDevicesPageClick(object sender, RoutedEventArgs e) =>
-        OpenPageOverlay(Strings.Ui_PageDevices, new DeviceManagePage(new DeviceStore()));
+    private void OnDevicesPageClick(object sender, RoutedEventArgs e) => OpenOverlayTab("devices");
 
-    private void OnSettingsPageClick(object sender, RoutedEventArgs e) =>
-        OpenPageOverlay(Strings.Ui_PageSettings, new SettingsPage());
+    private void OnSettingsPageClick(object sender, RoutedEventArgs e) => OpenOverlayTab("general");
 
     private void OnOverlayCloseClick(object sender, RoutedEventArgs e) => ClosePageOverlay();
+
+    /// <summary>覆盖层顶部的四个页签：与主窗口「设置」下的分栏一一对应。</summary>
+    private void OnOverlayTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string key })
+        {
+            OpenOverlayTab(key);
+        }
+    }
+
+    /// <summary>
+    /// 按页签键打开对应页面。页面每次新建：主窗口改完设置再回镜像窗，这里拿到的一定是新实例，
+    /// 不会出现「界面上改了、镜像窗还显示旧值」。
+    /// </summary>
+    private void OpenOverlayTab(string key)
+    {
+        object page;
+        string title;
+
+        switch (key)
+        {
+            case "keys":
+                page = new KeysPage();
+                title = Strings.Menu_Settings_Keys;
+                break;
+            case "av":
+                page = new AvPage();
+                title = Strings.Menu_Settings_Av;
+                break;
+            case "general":
+                page = new SettingsPage();
+                title = Strings.Menu_Settings_General;
+                break;
+            default:
+                key = "devices";
+                page = new DeviceManagePage(new DeviceStore());
+                title = Strings.Menu_Settings_Devices;
+                break;
+        }
+
+        UpdateOverlayTabs(key);
+        OpenPageOverlay(title, page);
+    }
+
+    /// <summary>高亮当前页签。</summary>
+    private void UpdateOverlayTabs(string key)
+    {
+        foreach ((Button button, string tag) in new[]
+        {
+            (OverlayTabDevices, "devices"),
+            (OverlayTabGeneral, "general"),
+            (OverlayTabKeys, "keys"),
+            (OverlayTabAv, "av"),
+        })
+        {
+            bool active = string.Equals(tag, key, StringComparison.Ordinal);
+            button.Foreground = active
+                ? (Brush)new BrushConverter().ConvertFrom("#FFFFFFFF")!
+                : (Brush)new BrushConverter().ConvertFrom("#99FFFFFF")!;
+            button.FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal;
+        }
+    }
 
     /// <summary>打开窗口内页面：虚拟屏带动画缩到左下角，空出的区域放页面内容。</summary>
     /// <param name="title">页面标题。</param>
@@ -989,15 +1064,17 @@ public partial class MirrorWindow
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_fitting)
-        {
-            return;
-        }
-
+        // 先更新基准：内部调整（_fitting）时也必须记下新尺寸，
+        // 否则下一次用户拖拽会拿旧基准算增量，选错"以宽为准 / 以高为准"，画面就跳出比例。
         double deltaWidth = Math.Abs(e.NewSize.Width - _lastWidth);
         double deltaHeight = Math.Abs(e.NewSize.Height - _lastHeight);
         _lastWidth = e.NewSize.Width;
         _lastHeight = e.NewSize.Height;
+
+        if (_fitting)
+        {
+            return;
+        }
 
         FitWindowToAspect(keepWidth: deltaWidth >= deltaHeight);
     }
@@ -1040,6 +1117,64 @@ public partial class MirrorWindow
         {
             _fitting = false;
         }
+
+        // 拖到桌面外时把窗口「整块搬回」可见范围（优先搬，搬不动才等比缩小），
+        // 保证任何一次拖拽结束后：比例 = 手机分辨率，且窗口完整落在桌面里。
+        ClampWindowToWorkArea();
+    }
+
+    /// <summary>
+    /// 设备转屏时的窗口切换：<b>中心点不变</b>，尺寸优先用该朝向自己的记忆，
+    /// 没有记忆就沿用切换前的宽度（于是横屏与竖屏看起来一样大，只是按比例重新算高）。
+    /// </summary>
+    private void SwitchOrientation()
+    {
+        if (_fitting)
+        {
+            // 正好在一次内部调整中：此刻改尺寸会被 _fitting 吞掉，比例就永久留在旧值上。
+            // 排到本轮布局结束再切一次，保证转屏一定落在最后。
+            Dispatcher.BeginInvoke(new Action(SwitchOrientation), System.Windows.Threading.DispatcherPriority.Loaded);
+            return;
+        }
+
+        bool landscape = _aspect > 1d;
+        double centerX = Left + (ActualWidth / 2d);
+        double centerY = Top + ((ActualHeight > 1d ? ActualHeight : Height) / 2d);
+
+        AppSettings settings = AppSettings.Current;
+        double targetWidth;
+        double targetHeight;
+        if (landscape && settings.HasMirrorLandscape)
+        {
+            targetWidth = settings.MirrorLandscapeWidth;
+            targetHeight = settings.MirrorLandscapeHeight;
+        }
+        else if (!landscape && settings.HasMirrorPortrait)
+        {
+            targetWidth = settings.MirrorPortraitWidth;
+            targetHeight = settings.MirrorPortraitHeight;
+        }
+        else
+        {
+            // 没有该朝向的记忆：宽度照抄切换前，按新比例算高。
+            targetWidth = Math.Max(200d, ActualWidth > 1d ? ActualWidth : Width);
+            targetHeight = Math.Max(160d, (targetWidth / _aspect) + BarHeight);
+        }
+
+        _fitting = true;
+        try
+        {
+            Width = targetWidth;
+            Height = targetHeight;
+            Left = centerX - (targetWidth / 2d);
+            Top = centerY - (targetHeight / 2d);
+        }
+        finally
+        {
+            _fitting = false;
+        }
+
+        ClampWindowToWorkArea();
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
@@ -1406,8 +1541,15 @@ public partial class MirrorWindow
             (work.Height - BarHeight - 16d) * _aspect));
         double maxScreenHeight = maxScreenWidth / _aspect;
 
-        double targetWidth = Math.Min(Width <= 0 ? maxScreenWidth : Width, maxScreenWidth);
-        double targetHeight = Math.Min(Height <= 0 ? maxScreenHeight + BarHeight : Height, maxScreenHeight + BarHeight);
+        // 关键：这里是**等比缩放**，不是把宽高各自砍一刀。
+        // 以前 Width/Height 分别取 min，竖屏高度（1020）转到横屏后会被单独压到 941，
+        // 宽度还留在 409 —— 窗口比例与画面比例不一致，两侧就露出黑边。
+        double screenWidth = Math.Max(120d, Width <= 0 ? maxScreenWidth : Width);
+        double screenHeight = Math.Max(120d, (Height <= 0 ? maxScreenHeight + BarHeight : Height) - BarHeight);
+        double scale = Math.Min(1d, Math.Min(maxScreenWidth / screenWidth, maxScreenHeight / screenHeight));
+
+        double targetWidth = screenWidth * scale;
+        double targetHeight = (screenHeight * scale) + BarHeight;
 
         _fitting = true;
         try
@@ -2052,62 +2194,91 @@ public partial class MirrorWindow
             return;
         }
 
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
-
-        // Ctrl 组合键 = 手机系统键。系统键必须走 uitest uiInput keyEvent：
-        // uinput -K 对 Home/Back/Power 这类系统键是「假成功」（回显正常、屏幕无反应，真机实测过）。
-        if (ctrl)
+        // 用户自定义映射优先：按下的组合键若在「设置 → 按键映射」里，就翻译成对应手机动作。
+        // 表是每次按键现读 AppSettings 的，所以在设置页保存后立刻生效，不需要重连。
+        string gesture = KeyActions.Describe(e);
+        if (gesture.Length > 0 && TryResolveGesture(gesture, out string action))
         {
-            string? systemKey = e.Key switch
-            {
-                Key.H => "Home",
-                Key.B => "Back",
-                Key.J => "2720",
-                Key.P => "Power",
-                Key.Up => "16",
-                Key.Down => "17",
-                _ => null,
-            };
-
-            if (systemKey is not null)
-            {
-                e.Handled = true;
-                await FlushTypingAsync().ConfigureAwait(true);
-                await SendShellAsync("uitest uiInput keyEvent " + systemKey).ConfigureAwait(true);
-                return;
-            }
+            e.Handled = true;
+            await FlushTypingAsync().ConfigureAwait(true);
+            await ExecuteKeyActionAsync(action).ConfigureAwait(true);
+            return;
         }
 
-        int keyCode = e.Key switch
-        {
-            Key.Enter => 2054,
-            Key.Back => 2055,
-            Key.Tab => 2049,
-            Key.Left => 2012,
-            Key.Right => 2013,
-            Key.Up => 2014,
-            Key.Down => 2015,
-            _ => 0,
-        };
-
+        // 没映射时只保留一个通用逃生键：Esc 等于返回。
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
             await FlushTypingAsync().ConfigureAwait(true);
-            await SendShellAsync("uitest uiInput keyEvent Back").ConfigureAwait(true);
-            return;
+            await ExecuteKeyActionAsync(KeyActions.Back).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>在用户自定义映射里查这条组合键该做哪个动作；表为空即什么也不拦。</summary>
+    private static bool TryResolveGesture(string gesture, out string action)
+    {
+        foreach (KeyBinding binding in AppSettings.Current.KeyBindings)
+        {
+            if (string.Equals(binding.Gesture, gesture, StringComparison.OrdinalIgnoreCase))
+            {
+                action = binding.Action;
+                return true;
+            }
         }
 
-        if (keyCode == 0)
+        action = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// 把一个动作发到手机。系统键（Home/Back/最近任务/电源/音量）必须走
+    /// <c>uitest uiInput keyEvent</c>；编辑键（回车/退格/制表/方向键）走 <c>uinput -K</c>。
+    /// </summary>
+    private async Task ExecuteKeyActionAsync(string action)
+    {
+        switch (action)
+        {
+            case KeyActions.Home:
+                await SendShellAsync("uitest uiInput keyEvent Home").ConfigureAwait(true);
+                return;
+            case KeyActions.Back:
+                await SendShellAsync("uitest uiInput keyEvent Back").ConfigureAwait(true);
+                return;
+            case KeyActions.Recent:
+                await SendShellAsync("uitest uiInput keyEvent 2720").ConfigureAwait(true);
+                return;
+            case KeyActions.Power:
+                await SendShellAsync("uitest uiInput keyEvent Power").ConfigureAwait(true);
+                return;
+            case KeyActions.VolumeUp:
+                await SendShellAsync("uitest uiInput keyEvent 16").ConfigureAwait(true);
+                return;
+            case KeyActions.VolumeDown:
+                await SendShellAsync("uitest uiInput keyEvent 17").ConfigureAwait(true);
+                return;
+            default:
+                break;
+        }
+
+        int code = action switch
+        {
+            KeyActions.Enter => 2054,
+            KeyActions.Backspace => 2055,
+            KeyActions.Tab => 2049,
+            KeyActions.Left => 2012,
+            KeyActions.Right => 2013,
+            KeyActions.Up => 2014,
+            KeyActions.Down => 2015,
+            _ => 0,
+        };
+
+        if (code == 0)
         {
             return;
         }
 
-        e.Handled = true;
-        await FlushTypingAsync().ConfigureAwait(true);
-        await SendShellAsync($"uinput -K -d {keyCode} -u {keyCode}").ConfigureAwait(true);
+        await SendShellAsync($"uinput -K -d {code} -u {code}").ConfigureAwait(true);
     }
-
     private async Task SendShellAsync(string command)
     {
         if (_inputRunner is null)
@@ -2123,5 +2294,61 @@ public partial class MirrorWindow
         {
             _log.Warn("input", $"按键注入失败：{ex.Message}");
         }
+    }
+    /// <summary>
+    /// 开窗时主窗口给的初始矩形：有竖屏记忆就用记忆，否则就用主窗口当前的位置与大小。
+    /// 不在这里做比例校正，交给 <see cref="FitWindowToAspect"/>。
+    /// </summary>
+    private void ApplyInitialBounds()
+    {
+        if (InitialBounds is not { Width: > 1d, Height: > 1d } bounds)
+        {
+            return;
+        }
+
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = bounds.Left;
+        Top = bounds.Top;
+        Width = bounds.Width;
+        Height = bounds.Height;
+    }
+
+    /// <summary>
+    /// 关窗时记住当前朝向的位置与大小（竖屏、横屏各存一份），
+    /// 并让主窗口挪到同一位置出现 —— <b>只挪位置，绝不改主窗口的大小</b>。
+    /// </summary>
+    private void RememberGeometry()
+    {
+        AppSettings settings = AppSettings.Current;
+        bool landscape = _aspect > 1d;
+        if (WindowState == WindowState.Normal && ActualWidth > 200 && ActualHeight > 200)
+        {
+            if (landscape)
+            {
+                settings.MirrorLandscapeLeft = Left;
+                settings.MirrorLandscapeTop = Top;
+                settings.MirrorLandscapeWidth = ActualWidth;
+                settings.MirrorLandscapeHeight = ActualHeight;
+            }
+            else
+            {
+                settings.MirrorPortraitLeft = Left;
+                settings.MirrorPortraitTop = Top;
+                settings.MirrorPortraitWidth = ActualWidth;
+                settings.MirrorPortraitHeight = ActualHeight;
+            }
+        }
+
+        if (Owner is Window owner && owner.WindowState == WindowState.Normal)
+        {
+            Rect work = WindowPlacement.WorkArea(owner);
+            double left = Math.Clamp(Left, work.Left, Math.Max(work.Left, work.Right - owner.Width));
+            double top = Math.Clamp(Top, work.Top, Math.Max(work.Top, work.Bottom - owner.Height));
+            owner.WindowStartupLocation = WindowStartupLocation.Manual;
+            owner.Left = left;
+            owner.Top = top;
+        }
+
+        settings.Save();
     }
 }

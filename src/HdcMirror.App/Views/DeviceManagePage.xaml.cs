@@ -31,23 +31,12 @@ public partial class DeviceManagePage
     /// <summary>本页删掉一条本机记录后通知外部（参数为被删端点）。</summary>
     public event EventHandler<string>? Deleted;
 
-    /// <summary>用户点了设置分栏里的其它页签（参数为 devices / general / keys / av）。</summary>
-    public event EventHandler<string>? TabRequested;
-
     /// <summary>重新从磁盘读取清单并刷新列表。</summary>
     public void Refresh()
     {
         IReadOnlyList<SavedDevice> items = _store.Load();
         SavedList.ItemsSource = items;
         EmptyHint.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void OnTabClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string key })
-        {
-            TabRequested?.Invoke(this, key);
-        }
     }
 
     private void OnSavedConnectClick(object sender, RoutedEventArgs e)

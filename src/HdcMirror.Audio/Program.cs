@@ -127,25 +127,54 @@ internal static class Program
                 }
             };
 
-            connection.Start();
+            // StartAsync 必须在 OpenAsync 之前 await 完成（WinRT 文档要求）：它负责把本机登记成
+            // 可接收音频的端点。原来用的是同步 Start()，登记动作还没落地就去 Open，手机侧
+            // 「投射音频」里就时有时无。参考实现（AkiLink / AudioPlaybackConnector）都是 await StartAsync。
+            try
+            {
+                await connection.StartAsync().AsTask().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("LOG StartAsync 失败（继续尝试 Open）：" + Describe(ex));
+            }
+
             Console.WriteLine("OPENING");
 
             using var cts = new CancellationTokenSource(OpenWait);
             try
             {
-                await connection.OpenAsync().AsTask(cts.Token).ConfigureAwait(false);
-                Console.WriteLine("OPENED");
+                // OpenAsync 不靠异常报错：失败时它照样返回结果对象，只是 Status 不为 Success。
+                // 原来没看 Status 就打印 OPENED，等于把「没连上」当成了「已连接」。
+                AudioPlaybackConnectionOpenResult result =
+                    await connection.OpenAsync().AsTask(cts.Token).ConfigureAwait(false);
+
+                switch (result.Status)
+                {
+                    case AudioPlaybackConnectionOpenResultStatus.Success:
+                        Console.WriteLine("OPENED");
+                        break;
+                    case AudioPlaybackConnectionOpenResultStatus.RequestTimedOut:
+                        // 手机没响应（多半是没在控制中心点「投射音频」）。
+                        Console.WriteLine("ERROR 0x8007001F 请求超时：手机没接受投射");
+                        break;
+                    case AudioPlaybackConnectionOpenResultStatus.DeniedBySystem:
+                        // 永久性拒绝：系统策略或蓝牙栈拒绝，重试也没用，必须去蓝牙设置处理。
+                        Console.WriteLine("DENIED 系统拒绝（检查蓝牙配对与驱动）");
+                        break;
+                    default:
+                        Console.WriteLine("ERROR 0x80004005 未知失败：" + result.Status);
+                        break;
+                }
             }
             catch (OperationCanceledException)
             {
                 // API 内部 30 秒到点通常先返回 0x8007001F，这里兜住"我们自己超时"的分支。
-                Console.WriteLine("ERROR 0x8007001F");
-                return;
+                Console.WriteLine("ERROR 0x8007001F 等待手机投射超时");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ERROR " + Describe(ex));
-                return;
             }
         }
     }

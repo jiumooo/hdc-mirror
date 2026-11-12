@@ -144,7 +144,7 @@
     <value>尚未连接设备</value>
   </data>
   <data name="Dev_NoDeviceHint" xml:space="preserve">
-    <value>点上方「扫描」可发现局域网内已开启无线调试设备</value>
+    <value>点上方「扫描」查找局域网内的手机</value>
   </data>
   <data name="Dev_Info_Name" xml:space="preserve">
     <value>名称</value>
@@ -216,7 +216,7 @@
     <value>正在连接设备…</value>
   </data>
   <data name="Status_Mirror_Streaming" xml:space="preserve">
-    <value>镜像中 · {0}×{1} · {2} fps</value>
+    <value>{2} fps</value>
   </data>
   <data name="Status_Mirror_Idle" xml:space="preserve">
     <value>已连接 · 画面无变化时设备不推流</value>
@@ -301,10 +301,7 @@
     <value>删除</value>
     <comment>删除已记住的设备</comment>
   </data>
-  <data name="DevMgr_Hint" xml:space="preserve">
-    <value>设备只在本机保存显示名与地址，不含序列号</value>
-    <comment>设备管理页：隐私说明</comment>
-  </data>
+  
   <data name="Dev_DoubleClickConnect" xml:space="preserve">
     <value>双击这台设备直接连接</value>
     <comment>设备行悬停提示</comment>
@@ -322,7 +319,7 @@
     <comment>手动连接表单 IP 占位文字（示例地址用文档保留地址）</comment>
   </data>
   <data name="Dev_ManualPortPlaceholder" xml:space="preserve">
-    <value>端口，例如 5555</value>
+    <value>端口 5555</value>
     <comment>手动连接表单端口占位文字</comment>
   </data>
   <data name="Dev_ManualConnect" xml:space="preserve">
@@ -334,7 +331,7 @@
     <comment>设备管理页手动连接输入框占位文字</comment>
   </data>
   <data name="DevMgr_PortPlaceholder" xml:space="preserve">
-    <value>端口，例如 5555</value>
+    <value>端口 5555</value>
     <comment>设备管理页端口输入框占位文字</comment>
   </data>
   <data name="Ui_Delete" xml:space="preserve">
@@ -612,14 +609,14 @@
     <value>{0} / {1}（{2}%）</value>
   </data>
   <data name="Upd_SpeedFormat" xml:space="preserve">
-    <value>{0}/s · 剩余 {1}</value>
+    <value>{0} · 剩余 {1}</value>
   </data>
   <data name="Upd_RemainUnknown" xml:space="preserve">
     <value>正在估算…</value>
   </data>
-  <data name="Upd_ResumeFormat" xml:space="preserve">
-    <value>接着上次已下载的 {0} 继续</value>
-  </data>
+    <data name="Upd_Hint" xml:space="preserve">
+        <value>支持断点续传下载，下载完成后自动进入更新流程，更新完毕后自动重启软件。</value>
+    </data>
   <data name="Upd_Preparing" xml:space="preserve">
     <value>正在准备安装程序…</value>
   </data>
@@ -641,7 +638,221 @@
   <data name="Upd_ProgressOnlyPercentFormat" xml:space="preserve">
     <value>已下载 {0}%</value>
   </data>
-  <data name="Upd_ResumeNoticeFormat" xml:space="preserve">
-    <value>接着上次已下载的 {0} 继续；中途取消或断网都会保留</value>
+  <data name="Ui_Back" xml:space="preserve">
+    <value>返回</value>
+  </data>
+  <data name="Ui_BackToPhone" xml:space="preserve">
+    <value>点缩略屏回到设备</value>
+  </data>
+  <data name="Dev_ScanFillName" xml:space="preserve">
+    <value>正在读取设备名称…</value>
+  </data>
+  <data name="Settings_AudioReceive" xml:space="preserve">
+    <value>音频接收（手机 → 电脑）</value>
+  </data>
+  <data name="Settings_AudioRoleHint" xml:space="preserve">
+    <value>手机是发射端，电脑是接收端。音频由 Windows 音频引擎接手，再从「默认播放设备」（你的音响）放出来；投射期间手机会静音。</value>
+  </data>
+  <data name="Settings_AudioStart" xml:space="preserve">
+    <value>开启接收</value>
+  </data>
+  <data name="Settings_AudioStop" xml:space="preserve">
+    <value>停止接收</value>
+  </data>
+  <data name="Settings_AudioOpenSound" xml:space="preserve">
+    <value>打开声音设置</value>
+  </data>
+  <data name="Settings_AudioState_Idle" xml:space="preserve">
+    <value>未开启</value>
+  </data>
+  <data name="Settings_AudioState_Starting" xml:space="preserve">
+    <value>正在启动接收端…</value>
+  </data>
+  <data name="Settings_AudioState_Waiting" xml:space="preserve">
+    <value>已在等待手机：请下拉手机控制中心 →「投射音频」→ 选择本机</value>
+  </data>
+  <data name="Settings_AudioState_ConnectedFormat" xml:space="preserve">
+    <value>已连接，声音从电脑默认输出设备播放。{0}</value>
+  </data>
+  <data name="Settings_AudioState_NoDevice" xml:space="preserve">
+    <value>没有找到已配对的蓝牙手机：先在 Windows 蓝牙设置里配对你的手机</value>
+  </data>
+  <data name="Settings_AudioState_FailedFormat" xml:space="preserve">
+    <value>开启失败：{0}</value>
+  </data>
+  <data name="Settings_AudioSteps" xml:space="preserve">
+    <value>使用顺序：&#10;1. 先在 Windows「蓝牙和其他设备」里把手机配对（只需一次）。&#10;2. 点「开启接收」，让本机变成音频接收端。&#10;3. 手机下拉控制中心 →「投射音频」→ 选择本机名称。&#10;4. 声音从电脑当前默认播放设备出来；要换音响就在「打开声音设置」里改默认输出。</value>
+  </data>
+  <data name="Settings_AudioOutput" xml:space="preserve">
+    <value>播放设备</value>
+    <comment>音频接收卡片里的输出设备行标题</comment>
+  </data>
+  <data name="Settings_AudioOutputDefault" xml:space="preserve">
+    <value>系统默认输出</value>
+  </data>
+  <data name="Settings_AudioOutputHint" xml:space="preserve">
+    <value>选「系统默认输出」时跟随 Windows 当前默认播放设备；选具体设备只把本程序接收的声音切过去，不会改动系统默认设备，其它软件不受影响。已连接时切换立即生效，未连接则下次开启接收时生效。</value>
+  </data>
+  <data name="Settings_LockShot" xml:space="preserve">
+    <value>锁屏画面</value>
+  </data>
+  <data name="Settings_LockShotTip" xml:space="preserve">
+    <value>定时从手机抓一张当前画面，作为未连接时的背景。抓取不会点亮手机屏幕，手机熄屏时会自动跳过、等下一轮。</value>
+  </data>
+  <data name="Settings_LockShotAuto" xml:space="preserve">
+    <value>每分钟自动抓取</value>
+  </data>
+  <data name="Settings_LockShotNow" xml:space="preserve">
+    <value>立即抓取</value>
+  </data>
+  <data name="Settings_LockShotOn" xml:space="preserve">
+    <value>自动抓取已开启</value>
+  </data>
+  <data name="Settings_LockShotOff" xml:space="preserve">
+    <value>自动抓取已关闭</value>
+  </data>
+  <data name="Settings_LockShotBusy" xml:space="preserve">
+    <value>正在抓取…</value>
+  </data>
+  <data name="Settings_LockShotOk" xml:space="preserve">
+    <value>已更新：{0}</value>
+  </data>
+  <data name="Settings_LockShotFail" xml:space="preserve">
+    <value>抓取失败（手机可能处于熄屏状态）</value>
+  </data>
+  <data name="Settings_LockShotNoDevice" xml:space="preserve">
+    <value>还没选中设备</value>
+  </data>
+  <data name="Keys_MapTip" xml:space="preserve">
+    <value>按下想用的组合键，再选它在手机上对应的动作。这里没有任何预设，全部由你自己决定；点一下输入框再按键即可录入。</value>
+  </data>
+  <data name="Keys_Add" xml:space="preserve">
+    <value>新增映射</value>
+  </data>
+  <data name="Keys_Save" xml:space="preserve">
+    <value>保存映射</value>
+  </data>
+  <data name="Keys_SavedFormat" xml:space="preserve">
+    <value>已保存 {0} 条</value>
+  </data>
+  <data name="Keys_PressHint" xml:space="preserve">
+    <value>点一下这里，然后按下组合键</value>
+  </data>
+  <data name="Keys_Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="KeyAct_Home" xml:space="preserve">
+    <value>主屏幕</value>
+  </data>
+  <data name="KeyAct_Back" xml:space="preserve">
+    <value>返回</value>
+  </data>
+  <data name="KeyAct_Recent" xml:space="preserve">
+    <value>最近任务</value>
+  </data>
+  <data name="KeyAct_Power" xml:space="preserve">
+    <value>电源（锁屏 / 亮屏）</value>
+  </data>
+  <data name="KeyAct_VolumeUp" xml:space="preserve">
+    <value>音量 +</value>
+  </data>
+  <data name="KeyAct_VolumeDown" xml:space="preserve">
+    <value>音量 －</value>
+  </data>
+  <data name="KeyAct_Enter" xml:space="preserve">
+    <value>回车</value>
+  </data>
+  <data name="KeyAct_Backspace" xml:space="preserve">
+    <value>退格</value>
+  </data>
+  <data name="KeyAct_Tab" xml:space="preserve">
+    <value>制表</value>
+  </data>
+  <data name="KeyAct_Up" xml:space="preserve">
+    <value>方向键 上</value>
+  </data>
+  <data name="KeyAct_Down" xml:space="preserve">
+    <value>方向键 下</value>
+  </data>
+  <data name="KeyAct_Left" xml:space="preserve">
+    <value>方向键 左</value>
+  </data>
+  <data name="KeyAct_Right" xml:space="preserve">
+    <value>方向键 右</value>
+  </data>
+  <data name="Settings_Volume" xml:space="preserve">
+    <value>音量</value>
+  </data>
+  <data name="Settings_VolumeFollow" xml:space="preserve">
+    <value>以手机音量为主（推荐）</value>
+  </data>
+  <data name="Settings_VolumeFollowHint" xml:space="preserve">
+    <value>开启后电脑侧本应用固定 100%，音量只由手机决定，不会出现「手机开满还是小声」的两级衰减。</value>
+  </data>
+  <data name="Settings_VolumeHintOn" xml:space="preserve">
+    <value>当前：电脑侧已钉在 100%，请用手机侧音量键调节。</value>
+  </data>
+  <data name="Settings_VolumeHintOff" xml:space="preserve">
+    <value>当前：电脑侧按下面的滑杆走，关掉这个开关后手机音量仍会叠加在上面。</value>
+  </data>
+  <data name="Settings_Section_Startup" xml:space="preserve">
+    <value>启动与扫描</value>
+  </data>
+  <data name="Settings_AutoScan" xml:space="preserve">
+    <value>启动后自动扫描局域网设备</value>
+  </data>
+  <data name="Settings_AutoScanHint" xml:space="preserve">
+    <value>关掉的话，打开软件不会自动找手机，需要手动点上方［扫描］。</value>
+  </data>
+  <data name="Settings_Section_Data" xml:space="preserve">
+    <value>本机数据</value>
+  </data>
+  <data name="Settings_OpenDataFolder" xml:space="preserve">
+    <value>打开配置文件夹</value>
+  </data>
+  <data name="Settings_DataFolderHint" xml:space="preserve">
+    <value>设备列表、设置、日志与锁屏缓存都在这里，卸载本软件时会一并删除。</value>
+  </data>
+  <data name="Settings_FrameRateAuto" xml:space="preserve">
+    <value>自动</value>
+  </data>
+  <data name="Link_Wireless" xml:space="preserve">
+    <value>无线</value>
+  </data>
+  <data name="Link_Usb" xml:space="preserve">
+    <value>有线</value>
+  </data>
+  <data name="Settings_QualityHint" xml:space="preserve">
+    <value>100% 为原画质：手机原生分辨率 + 设置里的码率上限。降低百分比会按比例下调码率，细节变少、带宽变省；分辨率始终保持手机原生（华为守护进程只接受原分辨率编码）。</value>
+  </data>
+  <data name="Settings_QualityScaledFormat" xml:space="preserve">
+    <value>当前按 {0}% 画质输出：码率约为上限的 {0}%，画面细节会变少，分辨率和手机一致。</value>
+  </data>
+  <data name="Settings_Preset" xml:space="preserve">
+    <value>清晰度与流畅度</value>
+  </data>
+  <data name="Settings_PresetHint" xml:space="preserve">
+    <value>选档位会同时改下面的帧率和码率；反过来你手动改任意一项，这里会自动变成「自定义」。</value>
+  </data>
+  <data name="Preset_Clear" xml:space="preserve">
+    <value>清晰优先</value>
+  </data>
+  <data name="Preset_Balanced" xml:space="preserve">
+    <value>均衡</value>
+  </data>
+  <data name="Preset_Smooth" xml:space="preserve">
+    <value>流畅</value>
+  </data>
+  <data name="Preset_Custom" xml:space="preserve">
+    <value>自定义</value>
+  </data>
+  <data name="Preset_Ultra" xml:space="preserve">
+    <value>超清</value>
+  </data>
+  <data name="Preset_High" xml:space="preserve">
+    <value>高清</value>
+  </data>
+  <data name="Preset_Balanced2" xml:space="preserve">
+    <value>均衡</value>
   </data>
 </root>

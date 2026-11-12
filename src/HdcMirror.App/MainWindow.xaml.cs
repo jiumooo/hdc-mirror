@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using HdcMirror.App.Resources;
@@ -28,6 +29,9 @@ namespace HdcMirror.App;
 /// </summary>
 public partial class MainWindow
 {
+    /// <summary>可视外框相对 WPF Height 多出的高度（DWM 扩展边框，实测 79 像素）。</summary>
+    private const double VisualFrameInflation = 79d;
+
     /// <summary>
     /// 手机屏幕宽高比。设备可能竖屏（1260×2720）也可能横屏（2720×1260），
     /// 所以初值只是占位，第一帧解码出来后按真实尺寸校正。
@@ -39,15 +43,26 @@ public partial class MainWindow
 
     private bool _fittingPhone;
 
-    private readonly AppPageProvider _pages = AppPageProvider.Instance;
+    /// <summary>内容模式开关：true 时手机屏缩成左下角缩略屏，内容页占满其余空间。</summary>
+    private bool _contentOpen;
+
+    /// <summary>缩略屏宽度（px）；高度按手机真实宽高比自动算。</summary>
+    private const double ThumbnailWidth = 64d;
+
+    /// <summary>缩略屏距窗口左边与底边的距离（px）。</summary>
+    private const double ThumbnailMargin = 12d;
+
+    /// <summary>缩略屏下方那行提示文字占用的高度，避免缩略屏压到文字上。</summary>
+    private const double ThumbnailCaptionHeight = 20d;
+
+    /// <summary>页面缓存：同一种页面只建一次，切换菜单时就地显示/隐藏。</summary>
+    private readonly Dictionary<Type, UIElement> _pageCache = new();
 
     /// <summary>UI 线程上唯一的日志出口。</summary>
     private readonly FileLogSink _log = new();
 
     /// <summary>已记住设备的本地清单（只有显示名与端点，不含序列号）。</summary>
     private readonly DeviceStore _store = new();
-    private SettingsPage? _settingsPage;
-    private KeysPage? _keysPage;
 
     /// <summary>
     /// 端点线索库。「忘记设备」会清掉设备清单，但无线调试端口是随机分配的，
@@ -58,6 +73,9 @@ public partial class MainWindow
     /// <summary>当前选中设备最近一次读到的信息，用于给手机窗口取标题。</summary>
     private HdcDeviceInfo _lastInfo = HdcDeviceInfo.Empty;
 
+    /// <summary>定时抓手机画面做背景（见 Services\LockScreenCapture.cs）；没有设备前为 null。</summary>
+    private LockScreenCapture? _lockShot;
+
     /// <summary>正在读设备信息；启动流程与选中事件会同时触发，用它挡住重复绘制。</summary>
     private bool _infoLoading;
 
@@ -66,6 +84,7 @@ public partial class MainWindow
 
     /// <summary>镜像状态浮层当前显示的内容，避免每帧重复写同一个字符串。</summary>
     private string? _statusShown;
+    private DispatcherTimer? _statusTimer;
 
     /// <summary>设备下拉的数据源。</summary>
     public ObservableCollection<DeviceEntry> Devices { get; } = new();
@@ -95,10 +114,19 @@ public partial class MainWindow
     private void OnFirstLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnFirstLoaded;
+
+        // 先落位再算手机框：位置定了，UpdatePhoneFrameSize 才知道可用高度有多少。
+        PlaceAtRightColumn();
         UpdatePhoneFrameSize();
+
+        // 布局完成后再按真实外框高度居中：初次落位时 ActualHeight 还没算出来。
+        CenterVertically();
 
         // 全新安装（还没记住过任何设备）时，手机屏中央直接给手动连接表单。
         UpdateManualPanel();
+
+        // 有上次抓下来的手机画面就先铺上去，别一开就是纯黑。
+        UpdatePhoneBackground();
 
         // 启动时若手机已经在无线调试里连着，就先读设备信息铺满屏幕，再开始投屏；
         // 没有设备就停在「尚未连接设备」，不空起一条会话。
@@ -107,6 +135,76 @@ public partial class MainWindow
         // 启动时静默查一次更新：只有真发现新版本才提示，未配置 / 404 / 断网都只写日志。
         _ = CheckForUpdatesAsync(manual: false);
     }
+    /// <summary>
+    /// 启动落位：记住过就回到上次关闭的位置（越界自动收回工作区）；
+    /// 第一次启动则贴在屏幕最右边、上下居中。
+    /// </summary>
+    private void PlaceAtRightColumn()
+    {
+        Rect work = WindowPlacement.WorkArea(this);
+        AppSettings settings = AppSettings.Current;
+
+        if (settings.HasWindowPlacement)
+        {
+            Width = Math.Clamp(settings.WindowWidth, MinWidth, work.Width);
+            Height = Math.Clamp(settings.WindowHeight, MinHeight, work.Height);
+            Left = Math.Clamp(settings.WindowLeft, work.Left, Math.Max(work.Left, work.Right - Width));
+            Top = Math.Clamp(settings.WindowTop, work.Top, Math.Max(work.Top, work.Bottom - Height));
+            return;
+        }
+
+        double column = work.Width / 5d;
+        double wanted = Math.Max(MinWidth, Math.Min(column, work.Width * 0.45));
+        double tall = Math.Min(work.Height, wanted / _phoneAspect);
+
+        Width = wanted;
+        Height = Math.Max(MinHeight, tall);
+        Left = Math.Max(work.Left, work.Right - wanted - 8d);
+        Top = work.Top + Math.Max(0d, (work.Height - Height) / 2d);
+    }
+
+    /// <summary>把当前窗口的位置与大小记进设置，下次启动原样回来。</summary>
+    private void SaveWindowPlacement()
+    {
+        AppSettings settings = AppSettings.Current;
+        if (WindowState == WindowState.Normal)
+        {
+            settings.WindowLeft = Left;
+            settings.WindowTop = Top;
+            settings.WindowWidth = ActualWidth > 0 ? ActualWidth : Width;
+            settings.WindowHeight = ActualHeight > 0 ? ActualHeight : Height;
+        }
+        else
+        {
+            Rect restore = RestoreBounds;
+            if (restore.Width > 200 && restore.Height > 200)
+            {
+                settings.WindowLeft = restore.Left;
+                settings.WindowTop = restore.Top;
+                settings.WindowWidth = restore.Width;
+                settings.WindowHeight = restore.Height;
+            }
+        }
+
+        settings.Save();
+    }
+
+    /// <summary>按真实外框高度把窗口在可用区域内上下居中（初次落位后补一次）。</summary>
+    private void CenterVertically()
+    {
+        if (WindowState != WindowState.Normal)
+        {
+            return;
+        }
+
+        Rect work = WindowPlacement.WorkArea(this);
+        // WPF 的 Height 不含 DWM 扩展边框：实测可视外框比 Height 高 79 像素（截图逐像素核对过），
+        // 按 Height 居中会整体偏低约 40 像素，所以这里用 Height + 79 参与计算。
+        double visualHeight = Height + VisualFrameInflation;
+        double target = work.Top + Math.Max(0d, (work.Height - visualHeight) / 2d);
+        Top = Math.Min(target, Math.Max(work.Top, work.Bottom - visualHeight));
+    }
+
 
     /// <summary>启动自检：有已连接设备就直接显示设备简介，没有就保持空态。</summary>
     private async Task AutoStartAsync()
@@ -117,8 +215,12 @@ public partial class MainWindow
             IReadOnlyList<HdcDevice> devices = await enumerator.EnumerateAsync().ConfigureAwait(true);
             if (devices.Count == 0)
             {
-                // 还没连过设备：直接走一次扫描，用户打开软件就能看到自己的手机。
-                await RefreshDevicesAsync().ConfigureAwait(true);
+                // 还没连过设备：按设置决定是否自动扫一次；关掉的人手动点「扫描」。
+                if (AppSettings.Current.AutoScanOnStart)
+                {
+                    await RefreshDevicesAsync().ConfigureAwait(true);
+                }
+
                 UpdateManualPanel();
                 return;
             }
@@ -148,27 +250,139 @@ public partial class MainWindow
     /// </summary>
     internal void ShowPage(Type pageType, string title)
     {
-        var frame = new System.Windows.Controls.Frame
-        {
-            NavigationUIVisibility = System.Windows.Navigation.NavigationUIVisibility.Hidden,
-        };
+        _log.Write(LogLevel.Debug, "App.Main", "在主窗口内打开页面：" + title);
+        // 非设置页（关于 / 支持作者 / 使用说明）不挂设置分栏，否则会「人在支持作者页、下面却是设置分栏」。
+        SettingsTabs.Visibility = Visibility.Collapsed;
+        ShowContentPage(GetOrCreatePage(pageType));
+    }
 
-        var window = new Window
+    /// <summary>按类型取页面实例，第一次取时创建并挂到内容宿主上。</summary>
+    private UIElement GetOrCreatePage(Type pageType)
+    {
+        if (_pageCache.TryGetValue(pageType, out UIElement? cached))
         {
-            Owner = this,
-            Title = title,
-            Width = 560,
-            Height = 640,
-            MinWidth = 480,
-            MinHeight = 480,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = frame,
-            FontFamily = FontFamily,
-            FontSize = FontSize,
-        };
+            return cached;
+        }
 
-        frame.Navigate(_pages.GetPage(pageType));
-        window.ShowDialog();
+        if (Activator.CreateInstance(pageType) is not UserControl page)
+        {
+            throw new InvalidOperationException("无法创建页面：" + pageType.Name);
+        }
+
+        page.Visibility = Visibility.Collapsed;
+        ManageHost.Children.Add(page);
+        _pageCache[pageType] = page;
+        return page;
+    }
+
+    /// <summary>把某一页显示到内容宿主，其余页收起；同时把手机屏切成缩略屏。</summary>
+    private void ShowContentPage(UIElement page)
+    {
+        foreach (UIElement child in ManageHost.Children)
+        {
+            child.Visibility = ReferenceEquals(child, page) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        SetContentMode(true);
+    }
+
+    /// <summary>内容开关：手机屏在「正常大小」与「左下角缩略屏」之间做 260ms 缓动。</summary>
+    /// <param name="open">true 进入内容模式，false 回到手机屏。</param>
+    private void SetContentMode(bool open)
+    {
+        if (_contentOpen == open)
+        {
+            return;
+        }
+
+        _contentOpen = open;
+        ThumbnailHint.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+
+        if (open)
+        {
+            ContentHost.Visibility = Visibility.Visible;
+            ApplyPhoneTransform(true, null);
+            return;
+        }
+
+        ApplyPhoneTransform(true, () =>
+        {
+            if (_contentOpen)
+            {
+                return;
+            }
+
+            ContentHost.Visibility = Visibility.Collapsed;
+            foreach (UIElement child in ManageHost.Children)
+            {
+                child.Visibility = Visibility.Collapsed;
+            }
+        });
+    }
+
+    /// <summary>
+    /// 计算并应用手机屏的缩放/位移：内容模式时缩到左下角当缩略屏，正常模式时复位。
+    /// 缩略屏固定 84px 宽，高度按真实宽高比自动得到。
+    /// </summary>
+    /// <param name="animate">是否走动画；布局变化时用 false 直接对齐。</param>
+    /// <param name="restore">动画结束后的回调。</param>
+    private void ApplyPhoneTransform(bool animate, Action? restore)
+    {
+        double frameWidth = PhoneFrame.ActualWidth;
+        double frameHeight = PhoneFrame.ActualHeight;
+        double target = _contentOpen && frameWidth > 0 ? ThumbnailWidth / frameWidth : 1d;
+        double scale = double.IsFinite(target) && target > 0 ? target : 1d;
+
+        double shiftX = 0d;
+        double shiftY = 0d;
+        if (_contentOpen)
+        {
+            // PhoneFrame 在 PhoneArea 里是居中放置的，缩放原点是左上角（RenderTransformOrigin=0,0），
+            // 所以位移必须先把居中带来的左上偏移扣掉，否则缩略屏会整体偏右下、底边被窗口切掉。
+            double offsetX = (PhoneArea.ActualWidth - frameWidth) / 2d;
+            double offsetY = (PhoneArea.ActualHeight - frameHeight) / 2d;
+            double shrunkHeight = frameHeight * scale;
+            shiftX = ThumbnailMargin - offsetX;
+            shiftY = PhoneArea.ActualHeight - ThumbnailMargin - ThumbnailCaptionHeight - shrunkHeight - offsetY;
+        }
+
+        if (!animate)
+        {
+            PhoneScale.ScaleX = scale;
+            PhoneScale.ScaleY = scale;
+            PhoneShift.X = shiftX;
+            PhoneShift.Y = shiftY;
+            restore?.Invoke();
+            return;
+        }
+
+        var duration = TimeSpan.FromMilliseconds(260);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        var scaleX = new DoubleAnimation(scale, duration) { EasingFunction = ease };
+        var scaleY = new DoubleAnimation(scale, duration) { EasingFunction = ease };
+        var shiftAnimationX = new DoubleAnimation(shiftX, duration) { EasingFunction = ease };
+        var shiftAnimationY = new DoubleAnimation(shiftY, duration) { EasingFunction = ease };
+
+        if (restore is not null)
+        {
+            shiftAnimationY.Completed += (_, _) => restore();
+        }
+
+        PhoneScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleX);
+        PhoneScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleY);
+        PhoneShift.BeginAnimation(TranslateTransform.XProperty, shiftAnimationX);
+        PhoneShift.BeginAnimation(TranslateTransform.YProperty, shiftAnimationY);
+    }
+
+    private void OnContentBackClick(object sender, RoutedEventArgs e)
+    {
+        if (_managePage is not null)
+        {
+            _managePage.Refresh();
+        }
+
+        SetContentMode(false);
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -385,6 +599,9 @@ public partial class MainWindow
             ShowStatus(Devices.Count > 0
                 ? string.Format(CultureInfo.CurrentCulture, Strings.Status_DeviceFoundFormat, Devices.Count)
                 : Strings.Status_NoDeviceFound);
+
+            // hdc 的局域网扫描只给 IP:端口，机型要连上才读得到；这里补一次，用户看到的就不是一串地址。
+            _ = FillDeviceNamesAsync();
         }
         catch (HdcException ex)
         {
@@ -413,13 +630,117 @@ public partial class MainWindow
                     return;
                 }
             }
+
+            // 本机已经记住过这台设备时直接用记住的名字，省掉一次连设备读机型的往返。
+            if (string.IsNullOrWhiteSpace(candidate.Name) || string.Equals(candidate.Name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                string? saved = SavedNameFor(key);
+                if (saved is not null)
+                {
+                    candidate.Name = saved;
+                }
+            }
         }
 
         Devices.Add(candidate);
     }
 
+    /// <summary>从本机设备清单里按端点找已记住的名字，没记住返回 null。</summary>
+    private string? SavedNameFor(string endpoint)
+    {
+        foreach (SavedDevice saved in _store.Load())
+        {
+            if (string.Equals(saved.Endpoint, endpoint, StringComparison.OrdinalIgnoreCase))
+            {
+                string title = saved.Title;
+                return string.IsNullOrWhiteSpace(title) || string.Equals(title, endpoint, StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : title;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// hdc 的局域网发现只返回 IP:端口，机型要连上才读得到。
+    /// 扫描结束后对「名字还等于地址」的条目补读一次 const.product.model；
+    /// 读不到就保持地址显示，不弹错、不影响其它设备。
+    /// </summary>
+    private async Task FillDeviceNamesAsync()
+    {
+        foreach (DeviceEntry entry in Devices.ToList())
+        {
+            string endpoint = EndpointOf(entry);
+            if (endpoint.Length == 0)
+            {
+                continue;
+            }
+
+            bool stillAddress = string.IsNullOrWhiteSpace(entry.Name)
+                || string.Equals(entry.Name, endpoint, StringComparison.OrdinalIgnoreCase);
+            if (!stillAddress)
+            {
+                continue;
+            }
+
+            try
+            {
+                var runner = new HdcRunner(
+                    log: _log,
+                    deviceSerial: endpoint,
+                    commandTimeout: TimeSpan.FromSeconds(5));
+                HdcResult result = await runner.ShellAsync("param get const.product.model").ConfigureAwait(true);
+                string model = result.StandardOutput.Trim();
+                if (IsPlausibleModel(model, endpoint))
+                {
+                    entry.Name = model;
+                    _hints.Remember(endpoint, model);
+                    _log.Write(LogLevel.Info, "device", "补读到设备名称：" + model + "（" + endpoint + "）");
+                }
+            }
+            catch (HdcException ex)
+            {
+                _log.Write(LogLevel.Debug, "device", "读取设备名称失败：" + endpoint + " → " + ex.Message);
+            }
+        }
+    }
+
     private static string EndpointOf(DeviceEntry entry)
         => entry.Endpoint ?? entry.Device?.Serial ?? string.Empty;
+
+    /// <summary>
+    /// hdc 失败时会把「[Fail]IE0010051 Device not found」这类文本打到标准输出，
+    /// 直接拿去当机型会显示在设备下拉里（实测过），所以只接受「像机型的一行短文本」。
+    /// </summary>
+    private static bool IsPlausibleModel(string model, string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return false;
+        }
+
+        if (model.Length > 40 || model.IndexOf('\n') >= 0 || model.IndexOf('\r') >= 0)
+        {
+            return false;
+        }
+
+        if (model.StartsWith("[", StringComparison.Ordinal) || model.StartsWith("Fail", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string[] noise = { "fail", "error", "not found", "not exist", "permission denied", "unknown" };
+        foreach (string word in noise)
+        {
+            if (model.Contains(word, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return !string.Equals(model, endpoint, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>切回「设备简介」视图（手机屏里显示九项信息）。</summary>
     private void ShowInfoView()
@@ -429,7 +750,7 @@ public partial class MainWindow
             return;
         }
 
-        ManageHost.Visibility = Visibility.Collapsed;
+        SetContentMode(false);
         EmptyState.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Visible;
     }
@@ -519,7 +840,7 @@ public partial class MainWindow
             ConnectButton.IsEnabled = false;
             InfoList.Children.Clear();
             InfoPanel.Visibility = Visibility.Collapsed;
-            ManageHost.Visibility = Visibility.Collapsed;
+            SetContentMode(false);
             MirrorStatusHost.Visibility = Visibility.Collapsed;
             EmptyState.Visibility = Visibility.Visible;
         }
@@ -564,6 +885,20 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// 刷新：没选设备就重扫列表；选了已连接的设备就重读它的简介（型号/系统/分辨率等）。
+    /// 与「扫描」刻意分开——扫描是找设备，刷新是更新眼下这台的信息。
+    /// </summary>
+    private async void OnRefreshClick(object sender, RoutedEventArgs e)
+    {
+        if (DevicePicker.SelectedItem is DeviceEntry { Device: { } device })
+        {
+            await ShowDeviceInfoAsync(device).ConfigureAwait(true);
+            return;
+        }
+
+        await RefreshDevicesAsync().ConfigureAwait(true);
+    }
     private async void OnConnectClick(object sender, RoutedEventArgs e)
     {
         if (DevicePicker.SelectedItem is not DeviceEntry entry)
@@ -637,7 +972,27 @@ public partial class MainWindow
         string title = string.IsNullOrWhiteSpace(_lastInfo.Name) ? device.Serial : _lastInfo.Name;
         _store.Remember(device.Serial, title);
 
-        var window = new MirrorWindow(device, title, _log) { Owner = this };
+        // 虚拟屏窗口的出生位置：有竖屏记忆就用记忆（关窗时记下的那一位子），
+        // 没有就照主窗口现在的位置与大小长出来 —— 用户要求「连上后窗口就是主窗口那么大」。
+        AppSettings settings = AppSettings.Current;
+        Rect initial = settings.HasMirrorPortrait
+            ? new Rect(
+                settings.MirrorPortraitLeft,
+                settings.MirrorPortraitTop,
+                settings.MirrorPortraitWidth,
+                settings.MirrorPortraitHeight)
+            : new Rect(
+                Left,
+                Top,
+                Math.Max(320d, ActualWidth > 1d ? ActualWidth : Width),
+                Math.Max(480d, ActualHeight > 1d ? ActualHeight : Height));
+
+        var window = new MirrorWindow(device, title, _log)
+        {
+            Owner = this,
+            InitialBounds = initial,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+        };
         window.Closed += (_, _) =>
         {
             Show();
@@ -651,74 +1006,69 @@ public partial class MainWindow
     }
 
     /// <summary>在手机屏幕区域显示设备管理面板。</summary>
-    internal void ShowManagePage()
-    {
-        _managePage ??= CreateManagePage();
-        ManageHost.Visibility = Visibility.Visible;
-        EmptyState.Visibility = Visibility.Collapsed;
-        InfoPanel.Visibility = Visibility.Collapsed;
-        MirrorStatusHost.Visibility = Visibility.Collapsed;
-        _managePage.Refresh();
-    }
+    internal void ShowManagePage() => ShowSettingsTab("devices");
 
     private DeviceManagePage CreateManagePage()
     {
         var page = new DeviceManagePage(_store);
         page.ConnectRequested += async (_, endpoint) => await ConnectEndpointAsync(endpoint).ConfigureAwait(true);
         page.Deleted += (_, endpoint) => RemoveDeviceByEndpoint(endpoint);
-        page.TabRequested += (_, key) => ShowSettingsTab(key);
         ManageHost.Children.Add(page);
         return page;
     }
 
     /// <summary>
-    /// 设置分栏就地切换：设备管理 / 通用设置 / 按键映射 都显示在手机屏这块区域里，不弹新窗口。
+    /// 设置分栏就地切换：设备管理 / 通用设置 / 按键映射 / 音画与音频 都显示在手机屏这块区域里，不弹新窗口。
     /// </summary>
     /// <param name="key">devices / general / keys / av。</param>
     private void ShowSettingsTab(string key)
     {
-        ManageHost.Visibility = Visibility.Visible;
-        EmptyState.Visibility = Visibility.Collapsed;
-        ManualPanel.Visibility = Visibility.Collapsed;
-        InfoPanel.Visibility = Visibility.Collapsed;
-        MirrorStatusHost.Visibility = Visibility.Collapsed;
+        SettingsTabs.Visibility = Visibility.Visible;
+
+        if (key is "general" or "av" or "keys")
+        {
+            Type pageType = key switch
+            {
+                "keys" => typeof(KeysPage),
+                "av" => typeof(AvPage),
+                _ => typeof(SettingsPage),
+            };
+            ShowContentPage(GetOrCreatePage(pageType));
+            UpdateTabHighlight(key);
+            return;
+        }
 
         _managePage ??= CreateManagePage();
-        _managePage.Visibility = key == "devices" ? Visibility.Visible : Visibility.Collapsed;
+        _managePage.Refresh();
+        ShowContentPage(_managePage);
+        UpdateTabHighlight("devices");
+    }
 
-        if (key == "general")
+    /// <summary>顶部分栏按钮点击：直接切到对应页面。</summary>
+    private void OnContentTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string key } && key.Length > 0)
         {
-            if (_settingsPage is null)
-            {
-                _settingsPage = new SettingsPage();
-                ManageHost.Children.Add(_settingsPage);
-            }
-
-            _settingsPage.Visibility = Visibility.Visible;
+            ShowSettingsTab(key);
         }
-        else if (_settingsPage is not null)
-        {
-            _settingsPage.Visibility = Visibility.Collapsed;
-        }
+    }
 
-        if (key == "keys")
+    /// <summary>高亮当前分栏，其余保持普通样式。</summary>
+    private void UpdateTabHighlight(string key)
+    {
+        (string Key, Wpf.Ui.Controls.Button Button)[] tabs =
         {
-            if (_keysPage is null)
-            {
-                _keysPage = new KeysPage();
-                ManageHost.Children.Add(_keysPage);
-            }
+            ("devices", TabDevicesButton),
+            ("general", TabGeneralButton),
+            ("keys", TabKeysButton),
+            ("av", TabAvButton),
+        };
 
-            _keysPage.Visibility = Visibility.Visible;
-        }
-        else if (_keysPage is not null)
+        foreach ((string tabKey, Wpf.Ui.Controls.Button button) in tabs)
         {
-            _keysPage.Visibility = Visibility.Collapsed;
-        }
-
-        if (key == "devices")
-        {
-            _managePage.Refresh();
+            bool active = string.Equals(tabKey, key, StringComparison.Ordinal);
+            button.Appearance = active ? Wpf.Ui.Controls.ControlAppearance.Primary : Wpf.Ui.Controls.ControlAppearance.Secondary;
+            button.FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 
@@ -771,6 +1121,13 @@ public partial class MainWindow
     /// <summary>双击手机屏：已经扫描/读取到设备信息时，直接打开镜像窗口。</summary>
     private void OnPhoneFrameMouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (_contentOpen && e.ClickCount == 1)
+        {
+            e.Handled = true;
+            SetContentMode(false);
+            return;
+        }
+
         if (e.ClickCount != 2 || _infoDevice is null)
         {
             return;
@@ -816,6 +1173,86 @@ public partial class MainWindow
 
     private void OnMenuDevicesClick(object sender, RoutedEventArgs e) => ShowManagePage();
 
+    /// <summary>
+    /// 对这个端点开定时抓图。锁屏壁纸会轮换，所以按 <see cref="AppSettings.LockScreenIntervalSeconds"/>
+    /// 周期性重抓；屏幕熄灭时抓不到，抓取器会静默跳过、等下一轮，不会去点亮手机。
+    /// </summary>
+    private void EnsureLockCapture(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            return;
+        }
+
+        _lockShot ??= CreateLockCapture();
+        _lockShot.Start(endpoint);
+    }
+
+    private LockScreenCapture CreateLockCapture()
+    {
+        var capture = new LockScreenCapture(_log);
+        capture.Captured += OnLockScreenCaptured;
+        return capture;
+    }
+
+    /// <summary>设置页「立即抓取」调这里：抓一张并把结果说给人听。</summary>
+    internal async Task<string> CaptureLockScreenNowAsync()
+    {
+        string? endpoint = (DevicePicker.SelectedItem as DeviceEntry)?.Endpoint;
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            return Strings.Settings_LockShotNoDevice;
+        }
+
+        _lockShot ??= CreateLockCapture();
+        _lockShot.Start(endpoint);
+        bool ok = await _lockShot.CaptureOnceAsync().ConfigureAwait(true);
+        return ok
+            ? string.Format(CultureInfo.CurrentCulture, Strings.Settings_LockShotOk, LockScreenCapture.TargetPath)
+            : Strings.Settings_LockShotFail;
+    }
+
+    private void OnLockScreenCaptured(string path)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(() => OnLockScreenCaptured(path)));
+            return;
+        }
+
+        UpdatePhoneBackground();
+    }
+
+    /// <summary>把缓存图铺到手机屏当背景（压暗到 55% 保证白字可读），没有缓存就保持纯黑。</summary>
+    private void UpdatePhoneBackground()
+    {
+        try
+        {
+            if (!LockScreenCapture.HasCache)
+            {
+                return;
+            }
+
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            image.UriSource = new Uri(LockScreenCapture.TargetPath);
+            image.EndInit();
+            image.Freeze();
+
+            PhoneFrame.Background = new ImageBrush(image)
+            {
+                Stretch = Stretch.UniformToFill,
+                Opacity = 0.55,
+            };
+        }
+        catch (Exception ex)
+        {
+            _log.Write(LogLevel.Warn, "App.Main", "加载锁屏背景失败：" + ex.Message);
+        }
+    }
+
     /// <summary>把设备信息面板显示出来：九项全部来自真机读取，读不到的留「—」。</summary>
     private async Task ShowDeviceInfoAsync(HdcDevice device)
     {
@@ -856,6 +1293,9 @@ public partial class MainWindow
             Debug.WriteLine(ex.Message);
         }
 
+
+        // 刷新率能力缓存：设置页的档位与「自动」档都靠它，读不到就退化为空清单。
+        DisplayModes.Update(info);
         _lastInfo = info;
 
         // 读到真实名称后回填下拉条目，手机上改了名也能立刻看到。
@@ -866,6 +1306,9 @@ public partial class MainWindow
             selected.Name = info.Name;
             DevicePicker.Text = info.Name;
         }
+
+        // 设备可用就按分钟抓一张画面，给未连接时的毛玻璃背景用。
+        EnsureLockCapture(device.Serial);
 
         // 读到名称后把显示名写进本机设备清单，避免「设备管理」里只显示 IP:端口。
         _hints.Remember(device.Serial, info.Name);
@@ -927,20 +1370,39 @@ public partial class MainWindow
         if (string.Equals(_statusShown, text, StringComparison.Ordinal))
         {
             MirrorStatusHost.Visibility = Visibility.Visible;
+            ArmStatusTimer();
             return;
         }
 
         _statusShown = text;
         MirrorStatusText.Text = text;
         MirrorStatusHost.Visibility = Visibility.Visible;
+        ArmStatusTimer();
+    }
+
+    /// <summary>状态提示只是过路消息，3 秒后自动收起，避免长期压在手机屏上。</summary>
+    private void ArmStatusTimer()
+    {
+        _statusTimer?.Stop();
+        _statusTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _statusTimer.Tick -= OnStatusTick;
+        _statusTimer.Tick += OnStatusTick;
+        _statusTimer.Start();
+    }
+
+    private void OnStatusTick(object? sender, EventArgs e)
+    {
+        _statusTimer?.Stop();
+        MirrorStatusHost.Visibility = Visibility.Collapsed;
+        _statusShown = null;
     }
 
     /// <summary>把画面层裁成与 <see cref="PhoneFrame"/> 一致的圆角。</summary>
     private void OnMenuAboutClick(object sender, RoutedEventArgs e) => ShowPage(typeof(AboutPage), Strings.Nav_About);
 
-    private void OnMenuSettingsClick(object sender, RoutedEventArgs e) => ShowPage(typeof(SettingsPage), Strings.Nav_Settings);
+    private void OnMenuSettingsClick(object sender, RoutedEventArgs e) => ShowSettingsTab("general");
 
-    private void OnMenuKeysClick(object sender, RoutedEventArgs e) => ShowPage(typeof(KeysPage), Strings.Keys_Title);
+    private void OnMenuKeysClick(object sender, RoutedEventArgs e) => ShowSettingsTab("keys");
 
     /// <summary>供托盘调用：走与菜单同一套检查逻辑。</summary>
     internal void CheckForUpdatesFromTray() => _ = CheckForUpdatesAsync(manual: true);
@@ -1145,19 +1607,12 @@ public partial class MainWindow
 
     private void OnMenuReportClick(object sender, RoutedEventArgs e) => OpenExternal(Strings.Link_Issues);
 
-    private void OnMenuSupportClick(object sender, RoutedEventArgs e)
-    {
-        var window = new SupporterWindow { Owner = this };
-        window.ShowDialog();
-    }
+    private void OnMenuSupportClick(object sender, RoutedEventArgs e) =>
+        ShowPage(typeof(SupportPage), Strings.Supporter_Title);
 
     private void OnMenuLogFolderClick(object sender, RoutedEventArgs e)
     {
-        string logs = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "HdcMirror",
-            "logs");
-
+        string logs = HdcMirror.Core.AppPaths.Logs;
         Directory.CreateDirectory(logs);
         OpenExternal(logs);
     }
@@ -1175,6 +1630,9 @@ public partial class MainWindow
     /// <inheritdoc />
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+
+        // 关窗即记位置：最小化到托盘也算"离开"，下次回来还是这儿。
+        SaveWindowPlacement();
         // TODO(M4): 关闭行为改读 AppSettings.MinimizeToTray；当前固定为最小化到托盘。
         const bool minimizeToTray = true;
 
@@ -1186,6 +1644,8 @@ public partial class MainWindow
         else
         {
             // 真正退出：镜像会话由手机窗口自己释放，设备清单在记住时已即时落盘。
+            _lockShot?.Dispose();
+            _lockShot = null;
         }
 
         base.OnClosing(e);

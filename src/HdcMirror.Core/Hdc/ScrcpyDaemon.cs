@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO.Compression;
 using HdcMirror.Core.Diagnostics;
 
@@ -19,8 +19,10 @@ public sealed record ScrcpyDaemonOptions
     /// <summary>设备侧工作目录。</summary>
     public string RemoteDirectory { get; init; } = "/data/local/tmp";
 
-    /// <summary>缩放比例，1 = 原始分辨率。</summary>
-    public int Scale { get; init; } = 1;
+    /// <summary>
+    /// 缩放比例，<c>1</c> = 原始分辨率（原画质）。越小画面越糊、带宽与解码压力越低；合法区间 <c>0.2 ~ 1</c>。
+    /// </summary>
+    public double Scale { get; init; } = 1d;
 
     /// <summary>目标帧率。</summary>
     public int FrameRate { get; init; } = 30;
@@ -491,7 +493,7 @@ public sealed class ScrcpyDaemon : IDisposable, IAsyncDisposable
     {
         var command =
             $"cd {_options.RemoteDirectory} && uitest start-daemon singleness --extension-name {remoteName}" +
-            $" -scale {_options.Scale.ToString(CultureInfo.InvariantCulture)}" +
+            $" -scale {_options.Scale.ToString("0.##", CultureInfo.InvariantCulture)}" +
             $" -frameRate {_options.FrameRate.ToString(CultureInfo.InvariantCulture)}" +
             $" -bitRate {_options.BitRate.ToString(CultureInfo.InvariantCulture)}" +
             $" -p {_options.Port.ToString(CultureInfo.InvariantCulture)}" +
@@ -511,7 +513,8 @@ public sealed class ScrcpyDaemon : IDisposable, IAsyncDisposable
                 return true;
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+            // 150 ms 一轮：设备侧 uitest 拉起通常 1.5~3 秒，1 秒粒度平均白等半秒。
+            await Task.Delay(TimeSpan.FromMilliseconds(150), cancellationToken).ConfigureAwait(false);
         }
 
         return await IsSocketListeningAsync(cancellationToken).ConfigureAwait(false);

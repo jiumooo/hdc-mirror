@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -103,6 +103,15 @@ public sealed class HdcDeviceInfoReader
         @"render resolution=(?<w>\d{3,5})x(?<h>\d{3,5})",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>支持的刷新率：<c>supportedMode[0]: 1260x2720, refreshRate=120</c>。</summary>
+    private static readonly Regex SupportedRatePattern = new(
+        @"supportedMode\[\d+\]:\s*\d+x\d+,\s*refreshRate=(?<r>\d+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>当前生效的刷新率：<c>activeMode: 1260x2720, refreshRate=60</c>。</summary>
+    private static readonly Regex ActiveRatePattern = new(
+        @"activeMode:\s*\d+x\d+,\s*refreshRate=(?<r>\d+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ActiveModePattern = new(
         @"activeMode:\s*(?<w>\d{3,5})x(?<h>\d{3,5})",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -175,6 +184,7 @@ public sealed class HdcDeviceInfoReader
         var architecture = SingleLine(outputs[2]);
         var memory = ParseMemory(outputs[3]);
         var resolution = ParseResolution(outputs[4]);
+        var displayRates = ParseRefreshRates(outputs[4]);
         var udid = ParseUdid(outputs[5]);
 
         var missing = new List<string>(4);
@@ -234,6 +244,8 @@ public sealed class HdcDeviceInfoReader
             KernelVersion = kernel,
             Cpu = cpu,
             Resolution = resolution,
+            SupportedRefreshRates = displayRates.Rates,
+            ActiveRefreshRate = displayRates.Active,
             Memory = memory,
             MissingFields = BuildMissing(name, brand, model, snValue, harmony, kernel, cpu, resolution, memory),
         };
@@ -484,6 +496,42 @@ public sealed class HdcDeviceInfoReader
         return string.Empty;
     }
 
+    /// <summary>
+    /// 从 <c>hidumper -s RenderService -a screen</c> 输出里取刷新率：
+    /// 支持的档位（去重升序）与当前生效档。
+    /// </summary>
+    /// <param name="screenDump">命令输出。</param>
+    /// <returns>读不到时 <c>Rates</c> 为空、<c>Active</c> 为 0。</returns>
+    public static (IReadOnlyList<int> Rates, int Active) ParseRefreshRates(string? screenDump)
+    {
+        if (string.IsNullOrWhiteSpace(screenDump))
+        {
+            return (Array.Empty<int>(), 0);
+        }
+
+        var rates = new SortedSet<int>(Comparer<int>.Default);
+        foreach (Match match in SupportedRatePattern.Matches(screenDump))
+        {
+            if (int.TryParse(match.Groups["r"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rate)
+                && rate is >= 24 and <= 240)
+            {
+                rates.Add(rate);
+            }
+        }
+
+        int active = 0;
+        Match activeMatch = ActiveRatePattern.Match(screenDump);
+        if (activeMatch.Success)
+        {
+            _ = int.TryParse(
+                activeMatch.Groups["r"].Value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out active);
+        }
+
+        return (rates.ToArray(), active);
+    }
     private static string SingleLine(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
