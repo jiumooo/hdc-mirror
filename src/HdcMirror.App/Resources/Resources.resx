@@ -855,4 +855,60 @@
   <data name="Preset_Balanced2" xml:space="preserve">
     <value>均衡</value>
   </data>
+  <data name="Settings_Language" xml:space="preserve">
+    <value>界面语言</value>
+    <comment>通用设置页：界面语言分组标题</comment>
+  </data>
+  <data name="Settings_LanguageHint" xml:space="preserve">
+    <value>切换后会自动重启一次以生效</value>
+    <comment>界面语言选项下方的说明</comment>
+  </data>
+  <data name="Lang_System" xml:space="preserve">
+    <value>跟随系统</value>
+    <comment>界面语言选项：跟随系统语言</comment>
+  </data>
+  <data name="Lang_Chinese" xml:space="preserve">
+    <value>简体中文</value>
+    <comment>界面语言选项：简体中文（各语言下都显示本体名）</comment>
+  </data>
+  <data name="Lang_English" xml:space="preserve">
+    <value>English</value>
+    <comment>界面语言选项：英文（各语言下都显示本体名）</comment>
+  </data>
+  <data name="Lang_DialogTitle" xml:space="preserve">
+    <value>选择界面语言 / Choose your language</value>
+    <comment>首启语言选择窗标题：此时还不知道用户语言，故意双语</comment>
+  </data>
+  <data name="Lang_DialogHint" xml:space="preserve">
+    <value>以后可在「设置 → 通用设置 → 界面语言」里更改 / You can change this later in Settings → General → Display language</value>
+    <comment>首启语言选择窗底部说明：同为双语</comment>
+  </data>
+  <data name="Common_Yes" xml:space="preserve">
+    <value>是</value>
+    <comment>通用：肯定回答（用于状态行拼接）</comment>
+  </data>
+  <data name="Common_No" xml:space="preserve">
+    <value>否</value>
+    <comment>通用：否定回答</comment>
+  </data>
+  <data name="Settings_CloseToTraySavedFormat" xml:space="preserve">
+    <value>{0}：关闭到托盘 {1}</value>
+    <comment>通用设置：改动「关闭到托盘」后的状态行，{0}=改动立即保存提示，{1}=是/否</comment>
+  </data>
+  <data name="Settings_FrameRateUnknown" xml:space="preserve">
+    <value>未知</value>
+    <comment>音画设置：读不到刷新率档位时的占位词</comment>
+  </data>
+  <data name="Settings_FrameRateHintUnknown" xml:space="preserve">
+    <value>尚未读到手机刷新率，连接一次后这里会显示它支持的全部档位。</value>
+    <comment>音画设置：还没有读到手机刷新率时的档位说明</comment>
+  </data>
+  <data name="Settings_FrameRateHintFormat" xml:space="preserve">
+    <value>你的手机：当前 {0} Hz，支持 {1} Hz。</value>
+    <comment>音画设置：读到刷新率后的档位说明，{0}=当前刷新率，{1}=支持档位列表</comment>
+  </data>
+  <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
+    <value>{0}：帧率 {1} · 码率 {2} Mbps</value>
+    <comment>音画设置：改动后的状态行，{0}=改动立即保存提示，{1}=帧率，{2}=码率</comment>
+  </data>
 </root>

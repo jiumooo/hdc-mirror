@@ -467,7 +467,7 @@ public partial class AvPage : UserControl
             : Strings.Settings_FrameRateAuto;
         SavedText.Text = string.Format(
             CultureInfo.CurrentCulture,
-            "{0}：帧率 {1} · 码率 {2} Mbps",
+            Strings.Settings_EffectiveSummaryFormat,
             Strings.Settings_EffectiveHint,
             rate,
             _settings.BitRateMbps);

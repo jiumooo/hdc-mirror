@@ -76,8 +76,9 @@ desktop.ini
 __pycache__/
 *.pyc
 
-# FFmpeg 原生库（GPL，本地获取，不进仓库）
-native/
+# FFmpeg 原生库：现在是我们自编的极简 LGPL 2.1+ 构建，随仓库分发（见 docs/18 与 THIRD-PARTY-NOTICES.md）
+# 只排除完整版备份，避免 183.9 MB 进仓库
+native/ffmpeg/win64.full-backup/
 # ── POC / 打包产物（都不入库）────────────────────────────────────────────────
 tools/pack/stage/
 tools/pack/dist/
@@ -90,3 +91,10 @@ docs/shots/
 # 开发期资料：第三方参考源码与内部协作笔记不入库
 reference/
 docs/16-模块与专家分工.md
+# 打包产物与调试留档：不进仓库
+tools/pack/dist/
+tools/pack/stage/
+tools/pack/dist-backup-selfcontained-*/
+tools/pack/_probe-logs-raw/
+tools/pack/probe-log-hdcprobe-*.txt
+_probe/

@@ -58,6 +58,29 @@
                 </StackPanel>
             </Border>
 
+            <!--  界面语言  -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Text="{x:Static res:Strings.Settings_Language}" />
+                    <ComboBox
+                        x:Name="LanguageBox"
+                        Margin="0,14,0,0"
+                        MinWidth="200"
+                        HorizontalAlignment="Left"
+                        SelectionChanged="OnLanguageChanged">
+                        <ComboBoxItem Content="{x:Static res:Strings.Lang_System}" Tag="" />
+                        <ComboBoxItem Content="{x:Static res:Strings.Lang_Chinese}" Tag="zh-Hans" />
+                        <ComboBoxItem Content="{x:Static res:Strings.Lang_English}" Tag="en" />
+                    </ComboBox>
+                    <TextBlock
+                        Style="{StaticResource FieldHintStyle}"
+                        Text="{x:Static res:Strings.Settings_LanguageHint}" />
+                </StackPanel>
+            </Border>
+
             <!--  本机数据  -->
             <Border Style="{StaticResource CardStyle}">
                 <StackPanel>

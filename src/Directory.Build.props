@@ -5,7 +5,7 @@
     M 里程碑推进时只改这里的 <Version>，csproj / 脚本 / 安装包一律不得重复声明。
   -->
   <PropertyGroup>
-    <Version>0.0.9</Version>
+    <Version>0.1.0</Version>
     <Product>HdcMirror</Product>
     <Company>HdcMirror</Company>
     <NeutralLanguage>zh-CN</NeutralLanguage>
@@ -26,4 +26,14 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
+  <!--
+    卫星资源裁剪（发布体积）：只保留简体中文与英文两套本地化资源。
+    不加这条时 publish 目录会带 13 个语言子目录（ru/ja/de/ko/fr/pl/it/es/pt-BR…），
+    合计约 15.5MB；本项目只用中英两种语言，其余纯属白送。
+    新增语言时在分号分隔的列表里追加即可，例如：zh-Hans;en;ja
+    （详细扩展步骤见 docs/19-发布形态与运行时依赖.md）。
+  -->
+  <PropertyGroup>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+  </PropertyGroup>
 </Project>

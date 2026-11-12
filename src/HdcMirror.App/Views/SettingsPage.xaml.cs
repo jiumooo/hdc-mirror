@@ -11,7 +11,7 @@ using HdcMirror.App.Services;
 namespace HdcMirror.App.Views;
 
 /// <summary>
-/// 通用设置页：行为（关闭窗口时最小化到托盘）。
+/// 通用设置页：行为（关闭窗口时最小化到托盘）、启动扫描、界面语言。
 /// 改动即存，写进 <c>%LOCALAPPDATA%\HdcMirror\settings.json</c>。
 /// 画质与音频在「音画与音频」页（<see cref="AvPage"/>）。
 /// </summary>
@@ -34,6 +34,7 @@ public partial class SettingsPage : UserControl
         {
             CloseToTrayBox.IsChecked = _settings.CloseToTray;
             AutoScanBox.IsChecked = _settings.AutoScanOnStart;
+            SelectLanguage(_settings.UiLanguage);
         }
         finally
         {
@@ -52,9 +53,9 @@ public partial class SettingsPage : UserControl
         _settings.Save();
         SavedText.Text = string.Format(
             CultureInfo.CurrentCulture,
-            "{0}：关闭到托盘 {1}",
+            Strings.Settings_CloseToTraySavedFormat,
             Strings.Settings_EffectiveHint,
-            _settings.CloseToTray ? "是" : "否");
+            _settings.CloseToTray ? Strings.Common_Yes : Strings.Common_No);
         SavedText.Opacity = 0.65;
     }
 
@@ -86,4 +87,49 @@ public partial class SettingsPage : UserControl
             SavedText.Opacity = 0.65;
         }
     }
+
+    /// <summary>把保存的语言值回填到下拉框（未知值按「跟随系统」显示）。</summary>
+    private void SelectLanguage(string? language)
+    {
+        string tag = language ?? "";
+        foreach (object entry in LanguageBox.Items)
+        {
+            if (entry is ComboBoxItem item
+                && string.Equals(item.Tag as string ?? "", tag, StringComparison.OrdinalIgnoreCase))
+            {
+                LanguageBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        LanguageBox.SelectedIndex = 0;
+    }
+
+    /// <summary>
+    /// 界面语言下拉框：选中即存，然后重启一次。
+    /// 界面文案是 <c>{x:Static res:Strings.Xxx}</c> 静态求值，热切会留下半中半英，
+    /// 所以只能靠重启保证干净。
+    /// </summary>
+    private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || LanguageBox.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        string language = item.Tag as string ?? "";
+        if (string.Equals(language, _settings.UiLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _settings.UiLanguage = language;
+        _settings.LanguageChosen = true;
+        _settings.Save();
+
+        SavedText.Text = Strings.Settings_LanguageHint;
+        SavedText.Opacity = 0.65;
+        App.RequestLanguageRestart();
+    }
+
 }

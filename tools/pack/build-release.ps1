@@ -7,13 +7,29 @@
     版本号唯一来源是 src\Directory.Build.props 的 <Version>，本脚本不写死、不接受覆盖，
     避免出现「安装包 0.1.0 / 程序集 0.2.0」这种 Velopack 会直接拒绝更新的错位。
 
+    ── 为什么默认「框架依赖」而不是「自包含」──
+    1) 体积：自包含把 .NET 8 桌面运行时打进包，实测约 +154MB（Setup 155.59MB / full 148MB）；
+       框架依赖后 Setup 只剩十几 MB，用户下载与每次全量更新都省一个数量级。
+    2) 更新成本：Velopack 的 delta 只能压缩「相对上一版变化的文件」。自包含包里运行时 DLL
+       占绝大多数且几乎不变，仍然每次全量重下；框架依赖后包体几乎只剩业务 DLL，
+       delta 才有意义。
+    3) 运行时由微软统一打补丁：用户机器上的 Microsoft.WindowsDesktop.App 由 Windows Update /
+       .NET 安装器维护，不需要每个应用各自发一版来带安全修复。
+    代价是目标机必须先有 .NET 8 Desktop Runtime。因此本脚本在打包时把运行时要求写进
+    vpk 的 --framework，让 Setup 自己声明依赖；同时 dist 里会附带一份
+    「HdcMirror-安装前检查.cmd」，在运行 Setup 之前就能明确告诉用户缺什么、去哪儿下载。
+    「检测」绝不能放在应用启动路径里 —— 框架依赖的程序在缺运行时的情况下根本起不来，
+    检测必须发生在安装之前。
+
 .PARAMETER SelfContained
-    打成自包含包（不需要用户预装 .NET 8 Desktop Runtime，体积约 +130MB）。
-    默认 false：框架依赖包，体积小，但目标机必须已有 .NET 8 Desktop Runtime。
+    ★ 逃生开关，默认关闭（= 框架依赖）。
+    万一运行时检测/引导链路不可用，加本开关一键退回「把 .NET 8 运行时打进包」的老形态：
+    --self-contained true，且不再向 vpk 声明 --framework。
 
 .PARAMETER Framework
-    框架依赖时告知 Setup 需要哪些运行时（传给 vpk --framework），例如 net8-x64-desktop。
-    留空则不做运行时前置检查。
+    框架依赖时告知 Setup 需要哪些运行时（传给 vpk --framework），默认 net8-x64-desktop。
+    自包含打包时本参数被忽略（包里自带运行时，声明依赖反而会让 Setup 白装一遍）。
+    传空字符串 '' 可显式关闭声明。
 
 .PARAMETER Channel
     Velopack 更新通道，默认 win。生成 releases.win.json。客户端 GithubSource 隐式读同名清单，
@@ -34,7 +50,12 @@
     打包前清空 dist 目录。
     ★ 只在「同一版本号重打」时用：vpk 发现 channel 里已存在 >= 当前版本的产物会直接拒绝。
     ★ 跨版本正常发版时不要加：dist 同时是增量更新的基线库，清空后只能出全量包，
-      老用户升级就等于重新下载 80MB+。
+      老用户升级就等于重新下载整套包。
+
+.NOTES
+    Portable.zip 已按所有者要求永久停用：vpk pack 固定带 --noPortable，
+    dist 里不会再出现 *-Portable.zip（免安装版本不做）。
+    增量包（*-delta.nupkg）保留，应用内更新依赖它。
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools\pack\build-release.ps1
@@ -45,7 +66,7 @@
 [CmdletBinding()]
 param(
     [switch]$SelfContained,
-    [string]$Framework = '',
+    [string]$Framework = 'net8-x64-desktop',
     [string]$Channel = 'win',
     [switch]$SkipPublish,
     [switch]$KeepStage,
@@ -82,6 +103,7 @@ $Vpk = Join-Path $env:USERPROFILE ".dotnet\tools\vpk.exe"
 function Write-Step([string]$Text) { Write-Host "`n▶ $Text" -ForegroundColor Cyan }
 function Write-Ok([string]$Text)   { Write-Host "  ✔ $Text" -ForegroundColor Green }
 function Write-Info([string]$Text) { Write-Host "  · $Text" }
+function Write-Warn([string]$Text) { Write-Host "  ! $Text" -ForegroundColor Yellow }
 
 # ---------------------------------------------------------------------------
 # 1. 读版本号（唯一来源）
@@ -101,10 +123,23 @@ if ($Version -notmatch '^\d+\.\d+\.\d+') {
     throw "版本号 '$Version' 不是 Velopack 可接受的语义版本（需形如 0.1.0 或 0.1.0-beta1）"
 }
 
+# 自包含时忽略 --framework 声明（包内自带运行时，再声明会让 Setup 白装一遍）
+$EffectiveFramework = ''
+if ($SelfContained) {
+    if ($Framework) { Write-Warn "已指定 -SelfContained：忽略 -Framework '$Framework'（包内自带运行时）" }
+} else {
+    $EffectiveFramework = $Framework
+}
+
+$PublishMode = if ($SelfContained) { '自包含 self-contained' } else { '框架依赖 framework-dependent' }
+
 Write-Info "包 ID     = $PackId"
 Write-Info "通道      = $Channel"
 Write-Info "运行时    = $Runtime"
-Write-Info "自包含    = $([bool]$SelfContained)"
+Write-Info "发布形态  = $PublishMode"
+Write-Info "运行时依赖= $(if ($EffectiveFramework) { $EffectiveFramework } else { '(不声明)' })"
+Write-Info "便携包    = 停用（固定 --noPortable）"
+Write-Info "增量包    = 启用（--delta BestSpeed）"
 Write-Info "跳过 AppCheck = $([bool]$SkipVeloAppCheck)$(if ($SkipVeloAppCheck) { '  ← 仅 POC 打通链路用，正式发版必须关闭' } else { '' })"
 
 # ---------------------------------------------------------------------------
@@ -140,20 +175,21 @@ Write-Ok "dist  = $DistDir"
 # ---------------------------------------------------------------------------
 # 3. dotnet publish
 # ---------------------------------------------------------------------------
+$SelfContainedValue = $SelfContained.IsPresent.ToString().ToLowerInvariant()
 if ($SkipPublish) {
     Write-Step "③ 跳过 publish（-SkipPublish）"
     if (-not (Test-Path (Join-Path $StageDir $MainExe))) {
         throw "-SkipPublish 要求 stage 里已有 $MainExe，实际没有"
     }
 } else {
-    Write-Step "③ dotnet publish（Release / $Runtime / self-contained:$([bool]$SelfContained)）"
+    Write-Step "③ dotnet publish（Release / $Runtime / self-contained:$SelfContainedValue）"
     Write-Info "工程：$AppProj"
 
     $publishArgs = @(
         'publish', $AppProj
         '-c', 'Release'
         '-r', $Runtime
-        "--self-contained", $SelfContained.IsPresent.ToString().ToLowerInvariant()
+        '--self-contained', $SelfContainedValue
         '-o', $StageDir
         '-p:PublishReadyToRun=false'
         '--nologo'
@@ -173,6 +209,15 @@ if ($SkipPublish) {
         Write-Ok "hdc.exe 已随包（tools\hdc.exe）"
     } else {
         Write-Host "  ✗ 警告：stage 里没有 tools\hdc.exe，设备控制会失效" -ForegroundColor Yellow
+    }
+
+    # 语言资源：Directory.Build.props 的 SatelliteResourceLanguages 决定留下哪几个卫星程序集
+    $satelliteDirs = @(Get-ChildItem $StageDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^[a-z]{2}(-[A-Za-z0-9]+)*$' } | Sort-Object Name)
+    if ($satelliteDirs.Count -gt 0) {
+        Write-Info ("语言目录 " + $satelliteDirs.Count + " 个：" + (($satelliteDirs | ForEach-Object { $_.Name }) -join ', '))
+    } else {
+        Write-Info "语言目录 0 个（资源已内联进主程序集）"
     }
 }
 
@@ -207,10 +252,12 @@ $packArgs = @(
     '--packTitle', 'HdcMirror'
     '--packAuthors', 'HdcMirror'
     '--delta', 'BestSpeed'
+    # 所有者要求不做免安装版：固定关掉 Portable 包
+    '--noPortable'
 )
-# 只在框架依赖 + 指定了 Framework 时才传，自包含包不需要
-if (-not $SelfContained -and $Framework) {
-    $packArgs += @('--framework', $Framework)
+# 框架依赖时把运行时要求写进安装器元数据，让 Setup 自己知道依赖哪个运行时
+if ($EffectiveFramework) {
+    $packArgs += @('--framework', $EffectiveFramework)
 }
 # vpk 会静态检查主程序 Main 是否调用了 VelopackApp.Build().Run()；
 # 主程序未接入时（如 M5 POC）用本开关放行，产物不具备自更新能力。
@@ -224,6 +271,26 @@ Write-Info ("vpk " + ($packArgs -join ' '))
 & $Vpk @packArgs
 if ($LASTEXITCODE -ne 0) { throw "vpk pack 失败，退出码 $LASTEXITCODE" }
 Write-Ok "pack 完成"
+
+# ---------------------------------------------------------------------------
+# 5b. 附带安装前运行时检查脚本（检测必须发生在 Setup 之前）
+# ---------------------------------------------------------------------------
+Write-Step "⑤b 附带安装前检查脚本"
+$PreinstallSrc = Join-Path $PackRoot 'preinstall-check\HdcMirror-安装前检查.cmd'
+if (Test-Path $PreinstallSrc) {
+    $PreinstallDst = Join-Path $DistDir 'HdcMirror-安装前检查.cmd'
+    Copy-Item $PreinstallSrc $PreinstallDst -Force
+    Write-Ok "已放入 dist：HdcMirror-安装前检查.cmd（双击先自检 .NET 8 桌面运行时）"
+} else {
+    Write-Warn "未找到 $PreinstallSrc，安装包不带前置检查脚本"
+}
+
+# 防御：任何残留的 Portable 产物都清掉（例如 dist 里上一版的旧 zip）
+$stalePortable = @(Get-ChildItem $DistDir -File -Filter '*-Portable.zip' -ErrorAction SilentlyContinue)
+foreach ($p in $stalePortable) {
+    Remove-Item $p.FullName -Force
+    Write-Info "已删除残留便携包：$($p.Name)"
+}
 
 # ---------------------------------------------------------------------------
 # 6. 产物清单
@@ -245,12 +312,24 @@ $manifest = $artifacts | Where-Object { $_.Name -like 'releases.*.json' }
 if (-not $setup)    { Write-Host "  ✗ 没有 *-Setup.exe" -ForegroundColor Red; exit 1 }
 if (-not $manifest) { Write-Host "  ✗ 没有 releases.*.json" -ForegroundColor Red; exit 1 }
 
+$portableLeft = @($artifacts | Where-Object { $_.Name -like '*-Portable.zip' })
+if ($portableLeft.Count -gt 0) {
+    Write-Host "  ✗ dist 里仍有 Portable 包：$(($portableLeft | ForEach-Object { $_.Name }) -join ', ')" -ForegroundColor Red
+    exit 1
+}
+
 Write-Ok "Setup  = $($setup.Name)"
 Write-Ok "清单   = $($manifest.Name)"
+Write-Ok "便携包 = 无（符合要求）"
 
-Write-Host "`n▶ 打包成功：$PackId $Version" -ForegroundColor Green
+$stageMb = if (Test-Path $StageDir) {
+    [math]::Round(((Get-ChildItem $StageDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 2)
+} else { 0 }
+Write-Ok "stage  = $stageMb MB"
+
+Write-Host "`n▶ 打包成功：$PackId $Version（$PublishMode）" -ForegroundColor Green
 Write-Host "  下一步（需人工许可，脚本不代做）：" -ForegroundColor Gray
 Write-Host "    1) 建 tag v$Version 并推送" -ForegroundColor Gray
-Write-Host "    2) 建 GitHub Release，附件上传 dist 下全部文件" -ForegroundColor Gray
+Write-Host "    2) 建 GitHub Release，附件上传 dist 下全部文件（含 HdcMirror-安装前检查.cmd）" -ForegroundColor Gray
 Write-Host "    3) Release 设为 latest（GithubSource 默认读 /releases/latest）" -ForegroundColor Gray
 exit 0

@@ -121,6 +121,18 @@ public sealed class AppSettings
 
     /// <summary>锁屏画面抓取间隔（秒），下限 15。</summary>
     public int LockScreenIntervalSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// 界面语言：空串 = 跟随系统，可选 "zh-Hans" / "en"。
+    /// 只影响 UI 文化（CurrentUICulture），日期、数字与体积格式仍跟随系统区域。
+    /// </summary>
+    public string UiLanguage { get; set; } = "";
+
+    /// <summary>
+    /// 用户是否已经在首启语言选择窗里做过选择。
+    /// 用它判断要不要再弹窗，而不是「配置文件是否存在」这种隐式条件。
+    /// </summary>
+    public bool LanguageChosen { get; set; }
     [JsonIgnore]
     public int EffectiveFrameRate => FrameRate <= 0 ? 0 : Math.Clamp(FrameRate, 24, 240);
     [JsonIgnore]

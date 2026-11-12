@@ -1,0 +1,808 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="App_Title" xml:space="preserve">
+    <value>HarmonyOS phone, wireless control · HdcMirror</value>
+  </data>
+  <data name="Nav_Devices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="Nav_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Nav_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Nav_Devices_Description" xml:space="preserve">
+    <value>Paired and discoverable phones are listed here. Double-click a card to start mirroring.</value>
+  </data>
+  <data name="Nav_Settings_Description" xml:space="preserve">
+    <value>Display, input, audio, connection and update options will be filled in group by group in later milestones.</value>
+  </data>
+  <data name="Nav_About_Description" xml:space="preserve">
+    <value>Mirror and control a HarmonyOS phone on your PC in real time over hdc wireless debugging.</value>
+  </data>
+  <data name="Nav_About_FullName" xml:space="preserve">
+    <value>HarmonyOS phone, wireless control · HdcMirror</value>
+  </data>
+  <data name="Nav_About_VersionFormat" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="Tray_ToolTip" xml:space="preserve">
+    <value>HarmonyOS phone, wireless control · HdcMirror</value>
+  </data>
+  <data name="Tray_ShowWindow" xml:space="preserve">
+    <value>Show main window</value>
+  </data>
+  <data name="Tray_BasicSettings" xml:space="preserve">
+    <value>Basic settings</value>
+  </data>
+  <data name="Tray_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Tray_Exit" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="Status_Ready" xml:space="preserve">
+    <value>Ready · No device connected</value>
+  </data>
+  <data name="Menu_App" xml:space="preserve">
+    <value>HdcMirror</value>
+  </data>
+  <data name="Menu_App_AboutFormat" xml:space="preserve">
+    <value>About {0}</value>
+  </data>
+  <data name="Menu_App_CheckUpdate" xml:space="preserve">
+    <value>Check for updates…</value>
+  </data>
+  <data name="Menu_App_ExitFormat" xml:space="preserve">
+    <value>Exit {0}</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="Menu_Tools_Settings" xml:space="preserve">
+    <value>Basic settings</value>
+  </data>
+  <data name="Menu_Tools_Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="Menu_Help_LogFolder" xml:space="preserve">
+    <value>Open log folder</value>
+  </data>
+  <data name="Err_UnhandledTitle" xml:space="preserve">
+    <value>An unhandled error occurred</value>
+  </data>
+  <data name="Err_UnhandledBody" xml:space="preserve">
+    <value>Details have been written to the log folder. Please pass that file to the developer.{0}Log folder: {1}</value>
+  </data>
+  <data name="Err_LogFolderOpen" xml:space="preserve">
+    <value>Log folder: {0}</value>
+  </data>
+  <data name="Menu_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Menu_Settings_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Menu_Settings_Keys" xml:space="preserve">
+    <value>Key mapping</value>
+  </data>
+  <data name="Menu_Settings_Av" xml:space="preserve">
+    <value>Video &amp; audio</value>
+  </data>
+  <data name="Menu_Help_Support" xml:space="preserve">
+    <value>Support the author…</value>
+  </data>
+  <data name="Menu_Help_Report" xml:space="preserve">
+    <value>Report an issue…</value>
+  </data>
+  <data name="Menu_Help_Docs" xml:space="preserve">
+    <value>User guide</value>
+  </data>
+  <data name="Ui_Scan" xml:space="preserve">
+    <value>Scan</value>
+  </data>
+  <data name="Ui_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Ui_Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="Ui_Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Dev_NoDevice" xml:space="preserve">
+    <value>No device connected yet</value>
+  </data>
+  <data name="Dev_NoDeviceHint" xml:space="preserve">
+    <value>Click Scan above to look for phones on your network</value>
+  </data>
+  <data name="Dev_Info_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Dev_Info_Brand" xml:space="preserve">
+    <value>Brand</value>
+  </data>
+  <data name="Dev_Info_Model" xml:space="preserve">
+    <value>Model</value>
+  </data>
+  <data name="Dev_Info_Os" xml:space="preserve">
+    <value>HarmonyOS version</value>
+  </data>
+  <data name="Dev_Info_Kernel" xml:space="preserve">
+    <value>Kernel version</value>
+  </data>
+  <data name="Dev_Info_Cpu" xml:space="preserve">
+    <value>Processor</value>
+  </data>
+  <data name="Dev_Info_Resolution" xml:space="preserve">
+    <value>Native resolution</value>
+  </data>
+  <data name="Dev_Info_Memory" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Dev_Info_Address" xml:space="preserve">
+    <value>Device address</value>
+  </data>
+  <data name="Tip_Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="Tip_Maximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="Tip_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Supporter_Title" xml:space="preserve">
+    <value>Support the author</value>
+  </data>
+  <data name="Supporter_ListTitle" xml:space="preserve">
+    <value>Supporters</value>
+  </data>
+  <data name="Supporter_Empty" xml:space="preserve">
+    <value>Nobody has signed yet</value>
+  </data>
+  <data name="Supporter_Note" xml:space="preserve">
+    <value>Scan the code to buy me a coffee — your name shows up here (anonymous is fine)</value>
+  </data>
+  <data name="Upd_Checking" xml:space="preserve">
+    <value>Checking for updates…</value>
+  </data>
+  <data name="Link_Docs" xml:space="preserve">
+    <value>https://github.com/jiumooo/hdc-mirror#readme</value>
+  </data>
+  <data name="Link_Issues" xml:space="preserve">
+    <value>https://github.com/jiumooo/hdc-mirror/issues</value>
+  </data>
+  <data name="Link_Releases" xml:space="preserve">
+    <value>https://github.com/jiumooo/hdc-mirror/releases</value>
+  </data>
+  <data name="Supporter_QrPlaceholder" xml:space="preserve">
+    <value>QR code image goes here</value>
+  </data>
+  <data name="Ui_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Status_Mirror_Starting" xml:space="preserve">
+    <value>Connecting to the device…</value>
+  </data>
+  <data name="Status_Mirror_Streaming" xml:space="preserve">
+    <value>{2} fps</value>
+  </data>
+  <data name="Status_Mirror_Idle" xml:space="preserve">
+    <value>Connected · The device stops streaming while the screen is static</value>
+  </data>
+  <data name="Status_Mirror_Stopped" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Err_Mirror_Start" xml:space="preserve">
+    <value>Mirroring failed to start: {0}</value>
+  </data>
+  <data name="Err_Mirror_NoDevice" xml:space="preserve">
+    <value>No connected device found</value>
+  </data>
+  <data name="Err_Mirror_Decode" xml:space="preserve">
+    <value>Decoding failed: {0}</value>
+  </data>
+  <data name="Status_Scanning" xml:space="preserve">
+    <value>Scanning your network for devices…</value>
+  </data>
+  <data name="Status_DeviceFoundFormat" xml:space="preserve">
+    <value>Found {0} device(s) — select one and click Connect</value>
+  </data>
+  <data name="Status_NoDeviceFound" xml:space="preserve">
+    <value>No devices found · Make sure wireless debugging is on and the phone is on the same network</value>
+  </data>
+  <data name="Status_ScanDeepFormat" xml:space="preserve">
+    <value>Port may have changed · Deep-scanning the ports of {0}, about a minute</value>
+  </data>
+  <data name="Status_HdcUnavailable" xml:space="preserve">
+    <value>hdc is unavailable · Check that hdc was installed together with this app</value>
+  </data>
+  <data name="Status_Connecting" xml:space="preserve">
+    <value>Connecting to the device…</value>
+  </data>
+  <data name="Status_ConnectFailed" xml:space="preserve">
+    <value>Connection failed · Approve the wireless debugging prompt on the phone</value>
+  </data>
+  <data name="Status_Mirror_Reconnecting" xml:space="preserve">
+    <value>The screen stayed static, so the device stopped streaming. Reconnecting…</value>
+  </data>
+  <data name="Err_Mirror_Daemon" xml:space="preserve">
+    <value>The device-side service could not be started.</value>
+  </data>
+  <data name="Err_Mirror_Forward" xml:space="preserve">
+    <value>Could not set up port forwarding.</value>
+  </data>
+  <data name="Err_Mirror_StreamClosed" xml:space="preserve">
+    <value>The device ended the frame stream and reconnecting did not bring it back.</value>
+  </data>
+  <data name="Menu_Settings_Devices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="DevMgr_Title" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="DevMgr_Saved" xml:space="preserve">
+    <value>Saved devices</value>
+  </data>
+  <data name="DevMgr_Empty" xml:space="preserve">
+    <value>No saved devices yet</value>
+  </data>
+  <data name="DevMgr_Manual" xml:space="preserve">
+    <value>Connect a device manually</value>
+  </data>
+  <data name="DevMgr_Ip" xml:space="preserve">
+    <value>IP address</value>
+  </data>
+  <data name="DevMgr_Port" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="DevMgr_Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="DevMgr_Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Dev_DoubleClickConnect" xml:space="preserve">
+    <value>Double-click to connect to this device</value>
+  </data>
+  <data name="Dev_ManualTitle" xml:space="preserve">
+    <value>Connect a device manually</value>
+  </data>
+  <data name="Dev_ManualHint" xml:space="preserve">
+    <value>Enter the address and port shown under Wireless debugging on the phone. Devices you connect once are remembered.</value>
+  </data>
+  <data name="Dev_ManualIpPlaceholder" xml:space="preserve">
+    <value>Device IP, e.g. 192.0.2.10</value>
+  </data>
+  <data name="Dev_ManualPortPlaceholder" xml:space="preserve">
+    <value>Port 5555</value>
+  </data>
+  <data name="Dev_ManualConnect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="DevMgr_IpPlaceholder" xml:space="preserve">
+    <value>Device IP, e.g. 192.0.2.10</value>
+  </data>
+  <data name="DevMgr_PortPlaceholder" xml:space="preserve">
+    <value>Port 5555</value>
+  </data>
+  <data name="Ui_Delete" xml:space="preserve">
+    <value>Delete device</value>
+  </data>
+  <data name="Ui_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Confirm_DeleteTitle" xml:space="preserve">
+    <value>Delete device</value>
+  </data>
+  <data name="Confirm_DeleteBodyFormat" xml:space="preserve">
+    <value>Forget “{0}”?
+
+This removes the saved entry on this PC and drops the current connection. Nothing on the phone is affected.</value>
+  </data>
+  <data name="Confirm_DeleteOk" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Status_DeviceRemovedFormat" xml:space="preserve">
+    <value>Removed “{0}” from the list</value>
+  </data>
+  <data name="Status_DeviceSelectedFormat" xml:space="preserve">
+    <value>Selected “{0}” — click Connect to start mirroring</value>
+  </data>
+  <data name="Ui_Forget" xml:space="preserve">
+    <value>Forget</value>
+  </data>
+  <data name="Ui_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="Status_Audio_Waiting" xml:space="preserve">
+    <value>Waiting for the phone to switch audio output to “PC”…</value>
+  </data>
+  <data name="Status_Audio_On" xml:space="preserve">
+    <value>Phone audio is now playing on this PC</value>
+  </data>
+  <data name="Status_Audio_Off" xml:space="preserve">
+    <value>Audio is off</value>
+  </data>
+  <data name="Status_Audio_NoDevice" xml:space="preserve">
+    <value>No usable Bluetooth device found — pair the phone with this PC first</value>
+  </data>
+  <data name="Status_Audio_FailedFormat" xml:space="preserve">
+    <value>Audio connection failed ({0}). Switch the phone audio output to “PC” in Control Center, then press the audio button again</value>
+  </data>
+  <data name="Settings_Quality" xml:space="preserve">
+    <value>Quality</value>
+  </data>
+  <data name="Settings_FrameRate" xml:space="preserve">
+    <value>Frame rate limit</value>
+  </data>
+  <data name="Settings_FrameRateHint" xml:space="preserve">
+    <value>60 is smoother; 30 saves power and bandwidth</value>
+  </data>
+  <data name="Settings_BitRate" xml:space="preserve">
+    <value>Bitrate (Mbps)</value>
+  </data>
+  <data name="Settings_BitRateHint" xml:space="preserve">
+    <value>8 is right for wireless; 16–24 over a cable</value>
+  </data>
+  <data name="Settings_Behavior" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="Settings_CloseToTray" xml:space="preserve">
+    <value>Minimize to the tray when the window closes</value>
+  </data>
+  <data name="Settings_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="Settings_AutoAudio" xml:space="preserve">
+    <value>Turn audio on automatically after connecting</value>
+  </data>
+  <data name="Settings_EffectiveHint" xml:space="preserve">
+    <value>Changes are saved immediately and apply on the next connection</value>
+  </data>
+  <data name="Keys_Title" xml:space="preserve">
+    <value>Key mapping</value>
+  </data>
+  <data name="Keys_Desc" xml:space="preserve">
+    <value>Pressing these keys in the phone window is the same as pressing the matching physical key on the phone. Letters, digits and Chinese text go straight from your keyboard.</value>
+  </data>
+  <data name="Keys_Col_Key" xml:space="preserve">
+    <value>PC key</value>
+  </data>
+  <data name="Keys_Col_Action" xml:space="preserve">
+    <value>Phone action</value>
+  </data>
+  <data name="Keys_Esc" xml:space="preserve">
+    <value>Esc</value>
+  </data>
+  <data name="Keys_EscAction" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Keys_Home" xml:space="preserve">
+    <value>Ctrl + H</value>
+  </data>
+  <data name="Keys_HomeAction" xml:space="preserve">
+    <value>Go to home screen</value>
+  </data>
+  <data name="Keys_Recents" xml:space="preserve">
+    <value>Ctrl + J</value>
+  </data>
+  <data name="Keys_RecentsAction" xml:space="preserve">
+    <value>Recent apps</value>
+  </data>
+  <data name="Keys_Power" xml:space="preserve">
+    <value>Ctrl + P</value>
+  </data>
+  <data name="Keys_PowerAction" xml:space="preserve">
+    <value>Power (screen off / on)</value>
+  </data>
+  <data name="Keys_VolumeUp" xml:space="preserve">
+    <value>Ctrl + ↑</value>
+  </data>
+  <data name="Keys_VolumeUpAction" xml:space="preserve">
+    <value>Volume up</value>
+  </data>
+  <data name="Keys_VolumeDown" xml:space="preserve">
+    <value>Ctrl + ↓</value>
+  </data>
+  <data name="Keys_VolumeDownAction" xml:space="preserve">
+    <value>Volume down</value>
+  </data>
+  <data name="Keys_Editing" xml:space="preserve">
+    <value>Enter / Backspace / Tab / arrow keys</value>
+  </data>
+  <data name="Keys_EditingAction" xml:space="preserve">
+    <value>Enter / delete / tab / move the caret</value>
+  </data>
+  <data name="Upd_Title" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="Upd_AvailableFormat" xml:space="preserve">
+    <value>Version {0} is available. Download and install it now?</value>
+  </data>
+  <data name="Upd_UpToDate" xml:space="preserve">
+    <value>You are on the latest version</value>
+  </data>
+  <data name="Upd_NotConfigured" xml:space="preserve">
+    <value>This is a development preview with no update source configured</value>
+  </data>
+  <data name="Upd_NotFound" xml:space="preserve">
+    <value>The update source has no releases yet</value>
+  </data>
+  <data name="Upd_FailedFormat" xml:space="preserve">
+    <value>Update check failed: {0}</value>
+  </data>
+  <data name="Upd_DownloadFailedFormat" xml:space="preserve">
+    <value>Downloading the installer failed: {0}</value>
+  </data>
+  <data name="Upd_Downloading" xml:space="preserve">
+    <value>Downloading the installer…</value>
+  </data>
+  <data name="Upd_InstallNow" xml:space="preserve">
+    <value>Download and install</value>
+  </data>
+  <data name="Tray_Devices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="Tray_CheckUpdate" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="Status_Mirror_PreparingDaemon" xml:space="preserve">
+    <value>Starting the device-side service…</value>
+  </data>
+  <data name="Status_Mirror_Forwarding" xml:space="preserve">
+    <value>Setting up port forwarding…</value>
+  </data>
+  <data name="Status_Mirror_WaitingFrame" xml:space="preserve">
+    <value>Waiting for the first frame…</value>
+  </data>
+  <data name="Ui_KeyHome" xml:space="preserve">
+    <value>Home key</value>
+  </data>
+  <data name="Ui_KeyBack" xml:space="preserve">
+    <value>Back key</value>
+  </data>
+  <data name="Ui_KeyRecent" xml:space="preserve">
+    <value>Recent apps</value>
+  </data>
+  <data name="Status_ManualNeedAddress" xml:space="preserve">
+    <value>Enter the device address and port first</value>
+  </data>
+  <data name="Ui_Pin" xml:space="preserve">
+    <value>Pin window: keep the phone window above all other windows</value>
+  </data>
+  <data name="Ui_PinOff" xml:space="preserve">
+    <value>Unpin window: put the phone window back in the normal order</value>
+  </data>
+  <data name="Ui_PageDevices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="Ui_PageSettings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Ui_PageClose" xml:space="preserve">
+    <value>Hide this page</value>
+  </data>
+  <data name="Ui_InfoTitle" xml:space="preserve">
+    <value>Device information</value>
+  </data>
+  <data name="Ui_IdleHint" xml:space="preserve">
+    <value>Device connected, getting the picture ready…</value>
+  </data>
+  <data name="Upd_ProgressTitle" xml:space="preserve">
+    <value>Downloading update</value>
+  </data>
+  <data name="Upd_ProgressFormat" xml:space="preserve">
+    <value>{0} of {1} ({2}%)</value>
+  </data>
+  <data name="Upd_SpeedFormat" xml:space="preserve">
+    <value>{0} · {1} remaining</value>
+  </data>
+  <data name="Upd_RemainUnknown" xml:space="preserve">
+    <value>Estimating…</value>
+  </data>
+  <data name="Upd_Hint" xml:space="preserve">
+    <value>Downloads resume where they left off, then the update runs automatically and restarts the app when it is done.</value>
+  </data>
+  <data name="Upd_Preparing" xml:space="preserve">
+    <value>Preparing the installer…</value>
+  </data>
+  <data name="Upd_Launching" xml:space="preserve">
+    <value>Starting the installer — this app is about to close…</value>
+  </data>
+  <data name="Upd_StartDownload" xml:space="preserve">
+    <value>Starting the download…</value>
+  </data>
+  <data name="Upd_CancelHint" xml:space="preserve">
+    <value>If you cancel, what was already downloaded is kept and resumes next time</value>
+  </data>
+  <data name="Upd_Restarting" xml:space="preserve">
+    <value>Installing; the app restarts automatically when it is done…</value>
+  </data>
+  <data name="Upd_ProgressPercentFormat" xml:space="preserve">
+    <value>{0} of {1} · {2}%</value>
+  </data>
+  <data name="Upd_ProgressOnlyPercentFormat" xml:space="preserve">
+    <value>{0}% downloaded</value>
+  </data>
+  <data name="Ui_Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Ui_BackToPhone" xml:space="preserve">
+    <value>Click the thumbnail to go back to the device</value>
+  </data>
+  <data name="Dev_ScanFillName" xml:space="preserve">
+    <value>Reading the device name…</value>
+  </data>
+  <data name="Settings_AudioReceive" xml:space="preserve">
+    <value>Audio receiver (phone → PC)</value>
+  </data>
+  <data name="Settings_AudioRoleHint" xml:space="preserve">
+    <value>The phone sends and the PC receives. Windows takes the stream over and plays it through the default playback device (your speakers); the phone is muted while casting.</value>
+  </data>
+  <data name="Settings_AudioStart" xml:space="preserve">
+    <value>Start receiving</value>
+  </data>
+  <data name="Settings_AudioStop" xml:space="preserve">
+    <value>Stop receiving</value>
+  </data>
+  <data name="Settings_AudioOpenSound" xml:space="preserve">
+    <value>Open sound settings</value>
+  </data>
+  <data name="Settings_AudioState_Idle" xml:space="preserve">
+    <value>Not running</value>
+  </data>
+  <data name="Settings_AudioState_Starting" xml:space="preserve">
+    <value>Starting the receiver…</value>
+  </data>
+  <data name="Settings_AudioState_Waiting" xml:space="preserve">
+    <value>Waiting for the phone: open Control Center → Cast audio → choose this PC</value>
+  </data>
+  <data name="Settings_AudioState_ConnectedFormat" xml:space="preserve">
+    <value>Connected — audio plays through the default output device of this PC. {0}</value>
+  </data>
+  <data name="Settings_AudioState_NoDevice" xml:space="preserve">
+    <value>No paired Bluetooth phone found: pair your phone in Windows Bluetooth settings first</value>
+  </data>
+  <data name="Settings_AudioState_FailedFormat" xml:space="preserve">
+    <value>Could not start: {0}</value>
+  </data>
+  <data name="Settings_AudioSteps" xml:space="preserve">
+    <value>Order of use:
+1. Pair the phone once in Windows “Bluetooth &amp; other devices”.
+2. Click Start receiving so this PC becomes the audio receiver.
+3. On the phone, open Control Center → Cast audio → choose this PC.
+4. Audio comes out of the current default playback device; to use other speakers, change the default output under Open sound settings.</value>
+  </data>
+  <data name="Settings_AudioOutput" xml:space="preserve">
+    <value>Playback device</value>
+  </data>
+  <data name="Settings_AudioOutputDefault" xml:space="preserve">
+    <value>System default output</value>
+  </data>
+  <data name="Settings_AudioOutputHint" xml:space="preserve">
+    <value>System default output follows whatever Windows currently uses; picking a specific device routes only this app's received audio to it, never changes the system default and leaves other software alone. Switching applies immediately while connected, otherwise when receiving next starts.</value>
+  </data>
+  <data name="Settings_LockShot" xml:space="preserve">
+    <value>Lock screen picture</value>
+  </data>
+  <data name="Settings_LockShotTip" xml:space="preserve">
+    <value>Grabs a snapshot from the phone now and then to use as the background while disconnected. Capturing never wakes the screen; while the phone screen is off it is skipped until the next round.</value>
+  </data>
+  <data name="Settings_LockShotAuto" xml:space="preserve">
+    <value>Capture every minute</value>
+  </data>
+  <data name="Settings_LockShotNow" xml:space="preserve">
+    <value>Capture now</value>
+  </data>
+  <data name="Settings_LockShotOn" xml:space="preserve">
+    <value>Automatic capture is on</value>
+  </data>
+  <data name="Settings_LockShotOff" xml:space="preserve">
+    <value>Automatic capture is off</value>
+  </data>
+  <data name="Settings_LockShotBusy" xml:space="preserve">
+    <value>Capturing…</value>
+  </data>
+  <data name="Settings_LockShotOk" xml:space="preserve">
+    <value>Updated: {0}</value>
+  </data>
+  <data name="Settings_LockShotFail" xml:space="preserve">
+    <value>Capture failed (the phone screen may be off)</value>
+  </data>
+  <data name="Settings_LockShotNoDevice" xml:space="preserve">
+    <value>No device selected yet</value>
+  </data>
+  <data name="Keys_MapTip" xml:space="preserve">
+    <value>Press the shortcut you want, then pick what it does on the phone. Nothing is preset — it is all up to you. Click the box, then press the keys.</value>
+  </data>
+  <data name="Keys_Add" xml:space="preserve">
+    <value>Add mapping</value>
+  </data>
+  <data name="Keys_Save" xml:space="preserve">
+    <value>Save mappings</value>
+  </data>
+  <data name="Keys_SavedFormat" xml:space="preserve">
+    <value>Saved {0}</value>
+  </data>
+  <data name="Keys_PressHint" xml:space="preserve">
+    <value>Click here, then press the shortcut</value>
+  </data>
+  <data name="Keys_Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="KeyAct_Home" xml:space="preserve">
+    <value>Home screen</value>
+  </data>
+  <data name="KeyAct_Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="KeyAct_Recent" xml:space="preserve">
+    <value>Recent apps</value>
+  </data>
+  <data name="KeyAct_Power" xml:space="preserve">
+    <value>Power (screen off / on)</value>
+  </data>
+  <data name="KeyAct_VolumeUp" xml:space="preserve">
+    <value>Volume +</value>
+  </data>
+  <data name="KeyAct_VolumeDown" xml:space="preserve">
+    <value>Volume −</value>
+  </data>
+  <data name="KeyAct_Enter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="KeyAct_Backspace" xml:space="preserve">
+    <value>Backspace</value>
+  </data>
+  <data name="KeyAct_Tab" xml:space="preserve">
+    <value>Tab</value>
+  </data>
+  <data name="KeyAct_Up" xml:space="preserve">
+    <value>Arrow up</value>
+  </data>
+  <data name="KeyAct_Down" xml:space="preserve">
+    <value>Arrow down</value>
+  </data>
+  <data name="KeyAct_Left" xml:space="preserve">
+    <value>Arrow left</value>
+  </data>
+  <data name="KeyAct_Right" xml:space="preserve">
+    <value>Arrow right</value>
+  </data>
+  <data name="Settings_Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="Settings_VolumeFollow" xml:space="preserve">
+    <value>Follow the phone volume (recommended)</value>
+  </data>
+  <data name="Settings_VolumeFollowHint" xml:space="preserve">
+    <value>With this on, this app stays at 100% on the PC and the phone alone sets loudness, so a maxed-out phone never comes out quiet from double attenuation.</value>
+  </data>
+  <data name="Settings_VolumeHintOn" xml:space="preserve">
+    <value>Now: the PC side is pinned at 100%, so use the volume keys on the phone.</value>
+  </data>
+  <data name="Settings_VolumeHintOff" xml:space="preserve">
+    <value>Now: the PC side follows the slider below; the phone volume still stacks on top of it.</value>
+  </data>
+  <data name="Settings_Section_Startup" xml:space="preserve">
+    <value>Startup &amp; scanning</value>
+  </data>
+  <data name="Settings_AutoScan" xml:space="preserve">
+    <value>Scan the network for devices at startup</value>
+  </data>
+  <data name="Settings_AutoScanHint" xml:space="preserve">
+    <value>When off, the app will not look for phones by itself — click Scan in the toolbar instead.</value>
+  </data>
+  <data name="Settings_Section_Data" xml:space="preserve">
+    <value>Local data</value>
+  </data>
+  <data name="Settings_OpenDataFolder" xml:space="preserve">
+    <value>Open data folder</value>
+  </data>
+  <data name="Settings_DataFolderHint" xml:space="preserve">
+    <value>The device list, settings, logs and lock screen cache live here and are removed when this app is uninstalled.</value>
+  </data>
+  <data name="Settings_FrameRateAuto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="Link_Wireless" xml:space="preserve">
+    <value>Wireless</value>
+  </data>
+  <data name="Link_Usb" xml:space="preserve">
+    <value>USB</value>
+  </data>
+  <data name="Settings_QualityHint" xml:space="preserve">
+    <value>100% means full quality: the native resolution of the phone plus the bitrate limit above. Lowering the percentage scales the bitrate down, trading detail for bandwidth; resolution always stays native (the Huawei daemon only encodes at native size).</value>
+  </data>
+  <data name="Settings_QualityScaledFormat" xml:space="preserve">
+    <value>Outputting at {0}% quality: the bitrate is about {0}% of the limit and some detail is lost, while resolution still matches the phone.</value>
+  </data>
+  <data name="Settings_Preset" xml:space="preserve">
+    <value>Quality &amp; smoothness</value>
+  </data>
+  <data name="Settings_PresetHint" xml:space="preserve">
+    <value>Picking a preset sets the frame rate and bitrate below; change either one by hand and this switches to Custom.</value>
+  </data>
+  <data name="Preset_Clear" xml:space="preserve">
+    <value>Favor clarity</value>
+  </data>
+  <data name="Preset_Balanced" xml:space="preserve">
+    <value>Balanced</value>
+  </data>
+  <data name="Preset_Smooth" xml:space="preserve">
+    <value>Favor smoothness</value>
+  </data>
+  <data name="Preset_Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="Preset_Ultra" xml:space="preserve">
+    <value>Ultra</value>
+  </data>
+  <data name="Preset_High" xml:space="preserve">
+    <value>High</value>
+  </data>
+  <data name="Preset_Balanced2" xml:space="preserve">
+    <value>Balanced</value>
+  </data>
+  <data name="Settings_Language" xml:space="preserve">
+    <value>Display language</value>
+  </data>
+  <data name="Settings_LanguageHint" xml:space="preserve">
+    <value>The app restarts once for the change to take effect</value>
+  </data>
+  <data name="Lang_System" xml:space="preserve">
+    <value>Follow system</value>
+  </data>
+  <data name="Lang_Chinese" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="Lang_English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Lang_DialogTitle" xml:space="preserve">
+    <value>Choose your language / 选择界面语言</value>
+  </data>
+  <data name="Lang_DialogHint" xml:space="preserve">
+    <value>You can change this later in Settings → General → Display language / 以后可在「设置 → 通用设置 → 界面语言」里更改</value>
+  </data>
+  <data name="Common_Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Common_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Settings_CloseToTraySavedFormat" xml:space="preserve">
+    <value>{0}: minimize to tray {1}</value>
+  </data>
+  <data name="Settings_FrameRateUnknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Settings_FrameRateHintUnknown" xml:space="preserve">
+    <value>Refresh rate not read yet — connect once and this will list every rate your phone supports.</value>
+  </data>
+  <data name="Settings_FrameRateHintFormat" xml:space="preserve">
+    <value>Your phone: {0} Hz now, supports {1} Hz.</value>
+  </data>
+  <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
+    <value>{0}: frame rate {1} · bitrate {2} Mbps</value>
+  </data>
+</root>

@@ -1,0 +1,113 @@
+FFmpeg 原生库（Windows x64，极简 shared 构建，仅 H.264 解码）
+
+═══════════════════════════════════════════════════════════════════
+一、为什么是极简构建
+═══════════════════════════════════════════════════════════════════
+本应用只需要「裸 H.264 解码 + YUV→BGRA 缩放」这一条路径：
+HdcMirror.Decode 直解手机投屏的 H.264 Annex-B 码流（每帧一个完整 AU），
+不走 avformat（无容器解封装）、不走 avfilter（无滤镜图）、不走 avdevice、
+不发网络请求、不做重采样。旧的 BtbN GPL 完整构建把这台机器上所有
+编解码器/封装器/滤镜/协议都打了进来，共 183.9 MB，其中 99% 代码在
+这条路径上永远不会被执行。
+
+因此改用官方源码 + --disable-everything 只留 h264 解码器与 h264 解析器，
+体积 183.9 MB → 5.19 MB（-97.2%），许可也从 GPL v3 降为 LGPL v2.1+。
+
+═══════════════════════════════════════════════════════════════════
+二、版本
+═══════════════════════════════════════════════════════════════════
+源码：FFmpeg 9.0.1 官方 release tarball
+      https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz
+      12036420 字节
+      SHA256 CF38E0E28C7E5605942C4A77755349B0145804A397AF37EB1FB4C77CB237F635
+版本号（ProductVersion 均为 9.0.1）：
+      avcodec-63.dll     63.1.101
+      avutil-61.dll      61.1.101
+      swscale-10.dll     10.1.101
+      swresample-7.dll    7.1.101
+
+为什么必须选 9.0.1 而不是 7.x：
+  托管绑定是 FFmpeg.AutoGen 9.0.1.1，包版本与 FFmpeg 版本一一对应，
+  且其 LibraryVersionMap 把库文件名硬编码为「名字-主版本.dll」。7.1.1 会产出
+  avcodec-61 / avutil-59 / swscale-8，soname 对不上，AVCodecContext 结构布局
+  也不兼容，运行期直接崩。所以版本必须跟绑定走。
+
+═══════════════════════════════════════════════════════════════════
+三、构建（可复现）
+═══════════════════════════════════════════════════════════════════
+工具链：MSYS2 + mingw-w64-x86_64-gcc 16.2.0 / nasm 3.02 / make 4.4.1
+        （winget install MSYS2.MSYS2，再 pacman -S mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-nasm make diffutils）
+
+一键脚本：tools/ffmpeg/build-minimal.sh
+  MSYSTEM=MINGW64 C:/msys64/usr/bin/bash.exe -lc \
+    'bash tools/ffmpeg/build-minimal.sh'
+
+等价的 configure 参数（本目录产物即由此生成）：
+  ./configure \
+    --prefix=/d/ffmpeg-build/prefix \
+    --arch=x86_64 --target-os=mingw32 \
+    --enable-shared --disable-static \
+    --disable-programs --disable-doc \
+    --disable-network --disable-autodetect \
+    --disable-everything \
+    --disable-avdevice --disable-avfilter --disable-avformat \
+    --enable-decoder=h264 --enable-parser=h264 \
+    --enable-swscale --enable-w32threads \
+    --extra-ldflags="-static -static-libgcc"
+  make -j20 && make install
+
+configure 收官输出（构建机上实测）：
+  Libraries:      avcodec  swresample  avutil  swscale
+  Enabled decoders: h264
+  Enabled parsers:  h264
+  demuxers/muxers/protocols/filters/bsfs/indevs/outdevs: 全部为空
+  License: LGPL version 2.1 or later
+
+--extra-ldflags="-static -static-libgcc" 的作用：
+  不加它时 avutil 会导入 libwinpthread-1.dll、swscale 会导入 libgcc_s_seh-1.dll，
+  这两个 MinGW 运行库不在应用输出目录，LoadLibrary 会失败。加上后静态链进 DLL，
+  产物只剩 KERNEL32 / msvcrt / bcrypt 三个系统依赖，形态与旧 BtbN 构建一致。
+
+构建日期：2026-11-12
+
+═══════════════════════════════════════════════════════════════════
+四、产物与校验
+═══════════════════════════════════════════════════════════════════
+  avcodec-63.dll      2031616 字节  SHA256 0A5CA66C5F66EBBC436D7BC03BCD882E5205E29A8D02D464D7E4828A296BF4AC
+  avutil-61.dll       1110528 字节  SHA256 1BB2DD5807750BC3861048256BEBC99A2173CF0535F23D9E1524EDA138B2109F
+  swscale-10.dll      2119680 字节  SHA256 D73C7F2CC86693DE7614174D83350AA72197293F8B9F9E6CD9C1BFC251BA84BE
+  swresample-7.dll     176640 字节  SHA256 158184E3F4968388D459EDDC1E25A5AAD14F9412BA18A4F11EF6D494671C2B8B
+  合计 5.19 MB（5,439,125 字节）
+
+关于上面的 SHA256（重要）：这些哈希只用于核对「本目录这一份」。
+  用同一份源码、同一组参数、同一套工具链重复构建，产物体积**逐字节相同**，
+  但 DLL 里有 3 处共 **6 个字节**是链接期生成的值（PE 头 DOS stub 区的两个 16 位字段 +
+  .rdata 末尾一处），每次链接都会变。所以重编后哈希会不同，这不是构建错误；
+  实测连续三次构建，差异都固定在同一偏移（136/137、216/217、2008580/2008581），
+  其余全部字节一致，解码输出也完全一致（像素抽样和恒为 30087233）。
+
+为什么保留 swresample-7.dll（代码里没有任何 swr_* 调用）：
+  FFmpeg.AutoGen 的 DynamicallyLoadedBindings.Initialize() 会为版本映射表里的每个库
+  建立函数指针。缺 avformat / avfilter / avdevice 时初始化仍成功（实测），但缺
+  swresample-7.dll 会让初始化抛出 NotSupportedException（栈顶
+  DynamicallyLoadedBindings.<>c.<Initialize>b__2_1255 → avcodec_version，落点
+  FfmpegRuntime.cs:79）。它只有 173 KB，留着零成本。
+
+已删除（不再随包分发）：
+  avformat-63.dll（22.05 MB）、avfilter-12.dll（36.19 MB）、avdevice-63.dll（4.78 MB）
+  —— 全仓库 0 处引用 avformat_* / avfilter_* / avdevice_*。
+
+═══════════════════════════════════════════════════════════════════
+五、回滚
+═══════════════════════════════════════════════════════════════════
+上一版完整 GPL 构建整体备份在 ../win64.full-backup/（8 个文件，183.9 MB）。
+回滚：删除本目录内容，把 ../win64.full-backup/ 里的文件拷回来即可。
+（native/ 不进 git，备份不会被提交。）
+
+═══════════════════════════════════════════════════════════════════
+六、许可
+═══════════════════════════════════════════════════════════════════
+LGPL version 2.1 or later（未链接任何 GPL 组件：无 libx264、无 libx265、
+无 --enable-gpl）。分发本目录需随附 LGPL 文本并提供获取对应源码的方式，
+源码即上述 ffmpeg-9.0.1.tar.xz 加本文件第三节的 configure 参数。

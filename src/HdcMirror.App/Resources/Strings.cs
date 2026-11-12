@@ -690,4 +690,40 @@ public static class Strings
 
     /// <summary>界面文案 <c>Settings_AudioOutputHint</c>：只影响本程序，不改系统默认设备</summary>
     public static string Settings_AudioOutputHint => Get(nameof(Settings_AudioOutputHint));
+
+    /// <summary>界面文案 <c>Settings_Language</c>：界面语言</summary>
+    public static string Settings_Language => Get(nameof(Settings_Language));
+    /// <summary>界面文案 <c>Settings_LanguageHint</c>：切换后会自动重启一次以生效</summary>
+    public static string Settings_LanguageHint => Get(nameof(Settings_LanguageHint));
+    /// <summary>界面文案 <c>Lang_System</c>：跟随系统</summary>
+    public static string Lang_System => Get(nameof(Lang_System));
+    /// <summary>界面文案 <c>Lang_Chinese</c>：简体中文</summary>
+    public static string Lang_Chinese => Get(nameof(Lang_Chinese));
+    /// <summary>界面文案 <c>Lang_English</c>：English</summary>
+    public static string Lang_English => Get(nameof(Lang_English));
+    /// <summary>界面文案 <c>Lang_DialogTitle</c>：选择界面语言 / Choose your language</summary>
+    public static string Lang_DialogTitle => Get(nameof(Lang_DialogTitle));
+    /// <summary>界面文案 <c>Lang_DialogHint</c>：以后可在「设置 → 通用设置 → 界面语言」里更改 / You can change this later in Settings</summary>
+    public static string Lang_DialogHint => Get(nameof(Lang_DialogHint));
+    /// <summary>界面文案 <c>Common_Yes</c>：是</summary>
+    public static string Common_Yes => Get(nameof(Common_Yes));
+
+    /// <summary>界面文案 <c>Common_No</c>：否</summary>
+    public static string Common_No => Get(nameof(Common_No));
+
+    /// <summary>界面文案 <c>Settings_CloseToTraySavedFormat</c>：{0}：关闭到托盘 {1}</summary>
+    public static string Settings_CloseToTraySavedFormat => Get(nameof(Settings_CloseToTraySavedFormat));
+
+    /// <summary>界面文案 <c>Settings_FrameRateUnknown</c>：未知</summary>
+    public static string Settings_FrameRateUnknown => Get(nameof(Settings_FrameRateUnknown));
+
+    /// <summary>界面文案 <c>Settings_FrameRateHintUnknown</c>：尚未读到手机刷新率，连接一次后这里会显示它支持的全部档位。</summary>
+    public static string Settings_FrameRateHintUnknown => Get(nameof(Settings_FrameRateHintUnknown));
+
+    /// <summary>界面文案 <c>Settings_FrameRateHintFormat</c>：你的手机：当前 {0} Hz，支持 {1} Hz。</summary>
+    public static string Settings_FrameRateHintFormat => Get(nameof(Settings_FrameRateHintFormat));
+
+    /// <summary>界面文案 <c>Settings_EffectiveSummaryFormat</c>：{0}：帧率 {1} · 码率 {2} Mbps</summary>
+    public static string Settings_EffectiveSummaryFormat => Get(nameof(Settings_EffectiveSummaryFormat));
+
 }

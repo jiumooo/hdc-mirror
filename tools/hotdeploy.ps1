@@ -92,8 +92,8 @@ if (-not (Test-Path $binDir)) {
     exit 4
 }
 
-Write-Host '③ 同步到安装目录（不删多余文件，不动 Update.exe / packages）…'
-$robolog = & robocopy $binDir $install /E /NFL /NDL /NJH /NJS /NP /R:2 /W:1 /XF *.pdb 2>&1
+Write-Host '③ 同步到安装目录（/MIR：源里没有的旧文件一并删除，避免残留旧 native 库；不动 Update.exe / packages）…'
+$robolog = & robocopy $binDir $install /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:1 /XF *.pdb 2>&1
 $rc = $LASTEXITCODE
 # robocopy: 0=无变化 1=有复制 2=多余文件 3=1+2 … 8 以上才是失败；负数=被中断
 if ($rc -lt 0 -or $rc -ge 8) {

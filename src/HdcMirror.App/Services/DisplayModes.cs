@@ -3,7 +3,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using HdcMirror.App.Resources;
 using HdcMirror.Core.Hdc;
 
 namespace HdcMirror.App.Services;
@@ -98,12 +100,16 @@ public static class DisplayModes
     {
         if (Supported.Count == 0 && Active == 0)
         {
-            return "尚未读到手机刷新率，连接一次后这里会显示它支持的全部档位。";
+            return Strings.Settings_FrameRateHintUnknown;
         }
 
         string rates = Supported.Count > 0
             ? string.Join('/', Supported)
-            : "未知";
-        return $"你的手机：当前 {Active} Hz，支持 {rates} Hz。";
+            : Strings.Settings_FrameRateUnknown;
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            Strings.Settings_FrameRateHintFormat,
+            Active,
+            rates);
     }
 }

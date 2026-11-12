@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -5,8 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using HdcMirror.App.Resources;
+using HdcMirror.App.Services;
+
+// System.Windows 里也有一个 Localization 类型，别名把它固定到我们自己的实现
+using Localization = HdcMirror.App.Services.Localization;
 using HdcMirror.App.Views;
 using H.NotifyIcon;
 using Wpf.Ui.Appearance;
@@ -33,6 +39,8 @@ public partial class App : Application
     private RegisteredWaitHandle? _activateRegistration;
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
+    private bool _afterLanguageChange;
+    private bool _languageRestartRequested;
 
     /// <summary>是否已由托盘「完全退出」发起关闭；为 <see langword="true"/> 时主窗口不再拦截关闭事件。</summary>
     public bool IsExitRequested { get; private set; }
@@ -40,6 +48,9 @@ public partial class App : Application
     /// <inheritdoc />
     protected override void OnStartup(StartupEventArgs e)
     {
+        // 换语言重启拉起的新实例会带这个参数：抢单实例锁时多等一会儿
+        _afterLanguageChange = HasLanguageChangeArgument(e.Args);
+
         // Velopack 安装钩子：安装/更新/卸载时的首启清理必须最先跑，失败也不能拖垮启动。
         try
         {
@@ -54,6 +65,12 @@ public partial class App : Application
         // 旧版本写在安装目录里的设备清单/设置/日志要搬一次；必须在读配置之前跑。
         HdcMirror.Core.AppPaths.MigrateFromLegacy();
 
+        // 界面语言必须在任何窗口/页面 XAML 解析之前定下来：{x:Static res:Strings.Xxx}
+        // 是静态求值，窗口一解析就定死，之后再改文化不会生效。
+        // 只改 UICulture，日期与数字格式仍跟随系统区域。
+        // 位置放在 MigrateFromLegacy 之后：旧版本写在安装目录里的 settings.json 要先搬过来。
+        Localization.Apply(AppSettings.Current.UiLanguage);
+
         base.OnStartup(e);
 
         // 必须在任何界面代码之前装好：M0 第一次启动时因导航时机问题在构造函数里
@@ -64,7 +81,7 @@ public partial class App : Application
         // 关闭窗口只隐藏，进程存活 → 退出必须显式调用 Shutdown()
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        if (!TryAcquireSingleInstance())
+        if (!TryAcquireSingleInstance(_afterLanguageChange))
         {
             // 已有实例：把它唤到前台，本次进程直接退出（不弹任何提示框）
             SignalRunningInstance();
@@ -74,6 +91,9 @@ public partial class App : Application
 
         try
         {
+            // 首启问一次语言：必须早于主窗口，主窗口 XAML 一解析文案就定死了
+            EnsureLanguageChosen();
+
             _mainWindow = new MainWindow();
             MainWindow = _mainWindow;
 
@@ -166,9 +186,7 @@ public partial class App : Application
     /// <inheritdoc />
     protected override void OnExit(ExitEventArgs e)
     {
-        _activateRegistration?.Unregister(null);
-        _activateSignal?.Dispose();
-        _instanceMutex?.Dispose();
+        ReleaseInstanceResources();
         _trayIcon?.Dispose();
         _trayIcon = null;
         base.OnExit(e);
@@ -295,13 +313,41 @@ public partial class App : Application
         Application.Current.Shutdown();
     }
 
-    private bool TryAcquireSingleInstance()
+    /// <summary>
+    /// 抢单实例闸门。<paramref name="allowRetry"/> 为真时（换语言重启拉起的新实例），
+    /// 每 200 ms 重试一次、最多 25 次（约 5 秒），等上一个实例把 Mutex / 窗口 / 托盘图标
+    /// 放干净 —— 否则用户会看到「已有实例在运行」而新窗口其实没起来。
+    /// </summary>
+    /// <param name="allowRetry">是否容忍上一个实例还没退干净。</param>
+    /// <returns>抢到闸门返回 <see langword="true"/>。</returns>
+    private bool TryAcquireSingleInstance(bool allowRetry)
     {
-        _instanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
-        if (!createdNew)
+        const int MaxAttempts = 25;
+        const int RetryDelayMs = 200;
+
+        int attempts = allowRetry ? MaxAttempts : 1;
+        for (int attempt = 0; attempt < attempts; attempt++)
         {
+            _instanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
+            if (createdNew)
+            {
+                break;
+            }
+
             _instanceMutex.Dispose();
             _instanceMutex = null;
+
+            if (attempt == attempts - 1)
+            {
+                return false;
+            }
+
+            // 启动阶段还没有任何窗口，UI 线程上同步等一下比异步编排简单可靠
+            Thread.Sleep(RetryDelayMs);
+        }
+
+        if (_instanceMutex is null)
+        {
             return false;
         }
 
@@ -336,4 +382,143 @@ public partial class App : Application
             signal.Set();
         }
     }
+
+    /// <summary>命令行里是否带 <c>--after-language-change</c>（换语言重启时由旧实例传给新实例）。</summary>
+    private static bool HasLanguageChangeArgument(string[] args)
+    {
+        foreach (string arg in args)
+        {
+            if (string.Equals(arg, Localization.AfterLanguageChangeArgument, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 首次启动问一次界面语言：<see cref="AppSettings.UiLanguage"/> 为空且从未选择过才弹。
+    /// 用 <see cref="AppSettings.LanguageChosen"/> 显式记录「问过了」，
+    /// 不依赖「配置文件是否存在」这种隐式条件。
+    /// </summary>
+    private static void EnsureLanguageChosen()
+    {
+        AppSettings settings = AppSettings.Current;
+        if (settings.LanguageChosen || !string.IsNullOrEmpty(settings.UiLanguage))
+        {
+            return;
+        }
+
+        string fallback = Localization.SystemPrefersEnglish()
+            ? Localization.English
+            : Localization.ChineseSimplified;
+
+        var dialog = new LanguageDialog(fallback);
+        dialog.ShowDialog();
+
+        // 直接关窗（Esc / 关闭按钮）时按系统语言记下来，不再反复弹
+        string chosen = dialog.SelectedLanguage ?? fallback;
+        settings.UiLanguage = chosen;
+        settings.LanguageChosen = true;
+        settings.Save();
+        Localization.Apply(chosen);
+    }
+
+    /// <summary>
+    /// 设置页改语言后调用：界面文案由 <c>{x:Static}</c> 静态求值，热切会留下半中半英，
+    /// 所以只能拉起一个新实例再退出自己。新实例带 <see cref="HdcMirror.App.Services.Localization.AfterLanguageChangeArgument"/>，
+    /// 抢单实例锁时会重试，等这个实例把句柄放干净。
+    /// </summary>
+    internal static void RequestLanguageRestart()
+    {
+        if (Application.Current is App app)
+        {
+            app.RestartForLanguageChange();
+        }
+    }
+
+    private void RestartForLanguageChange()
+    {
+        if (_languageRestartRequested)
+        {
+            return;
+        }
+
+        _languageRestartRequested = true;
+        IsExitRequested = true;
+
+        // 从 ComboBox 的 SelectionChanged 里同步 Shutdown 会打断事件处理，
+        // 推到消息循环下一轮再真正重启。
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RestartForLanguageChangeCore));
+    }
+
+    private void RestartForLanguageChangeCore()
+    {
+        // 先放掉闸门：新实例的 TryAcquireSingleInstance 才拿得到 createdNew
+        ReleaseInstanceResources();
+
+        try
+        {
+            StartFollowUpInstance();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // 起不来也不能把用户卡在旧语言上：本次照常退出，下次手动启动就是新语言
+            WriteCrashLog(ex, "language-restart");
+        }
+
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+        Shutdown();
+    }
+
+    /// <summary>拉起新实例。Debug 下用 <c>dotnet HdcMirror.dll</c> 跑时 ProcessPath 是
+    /// dotnet.exe，直接把参数丢给它只会启动一个空 CLI，必须显式带上程序集路径。</summary>
+    private static void StartFollowUpInstance()
+    {
+        string? exe = Environment.ProcessPath;
+        string argument = Localization.AfterLanguageChangeArgument;
+        bool hostedByDotnet = exe is not null
+            && string.Equals(Path.GetFileNameWithoutExtension(exe), "dotnet", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrEmpty(exe) || hostedByDotnet)
+        {
+            string host = string.IsNullOrEmpty(exe) ? "dotnet" : exe;
+            string assembly = typeof(App).Assembly.Location;
+            string arguments = $"\"{assembly}\" {argument}";
+            Process.Start(new ProcessStartInfo(host, arguments) { UseShellExecute = true });
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(exe, argument) { UseShellExecute = true });
+    }
+
+    /// <summary>放掉单实例闸门与激活信号；退出与「换语言重启」共用，重复调用安全。</summary>
+    private void ReleaseInstanceResources()
+    {
+        _activateRegistration?.Unregister(null);
+        _activateRegistration = null;
+
+        _activateSignal?.Dispose();
+        _activateSignal = null;
+
+        if (_instanceMutex is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _instanceMutex.ReleaseMutex();
+        }
+        catch (Exception ex) when (ex is ApplicationException or ObjectDisposedException)
+        {
+            // 不是本线程持有（或已释放）：无所谓，Dispose 照样关掉句柄
+        }
+
+        _instanceMutex.Dispose();
+        _instanceMutex = null;
+    }
+
 }
