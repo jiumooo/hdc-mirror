@@ -32,10 +32,10 @@
     <value>Display, input, audio, connection and update options will be filled in group by group in later milestones.</value>
   </data>
   <data name="Nav_About_Description" xml:space="preserve">
-    <value>Mirror and control a HarmonyOS NEXT device on your PC in real time over hdc wireless debugging.
+    <value>Mirror and control a HarmonyOS phone on your PC in real time over hdc wireless debugging.
 A self-hosted Windows desktop client: nothing is installed on the phone, only the built-in hdc wireless debugging is used.
-Video comes from the on-device casting service, input goes through uitest uiInput, audio goes over Bluetooth A2DP — the PC drives all of it.
-</value>
+Supports HarmonyOS NEXT 5.0.0 (API 12) and above; verified on OpenHarmony 7.0.0.111 (API 26).
+Video comes from the on-device casting service, input goes through uitest uiInput, audio goes over Bluetooth A2DP - the PC drives all of it.</value>
   </data>
   <data name="Nav_About_FullName" xml:space="preserve">
     <value>HarmonyOS phone, wireless control · HdcMirror</value>

@@ -37,10 +37,10 @@
     <value>显示、输入、音频、连接与更新等设置项将在后续里程碑按分组填充。</value>
   </data>
   <data name="Nav_About_Description" xml:space="preserve">
-    <value>通过 hdc 无线调试，在电脑上实时镜像并操控 HarmonyOS NEXT 以上版本的手机。
+    <value>通过 hdc 无线调试，在电脑上实时镜像并操控鸿蒙手机。
 一个自用的 Windows 桌面客户端：手机端零安装，只依赖系统自带的 hdc 无线调试。
-画面走设备侧投屏服务，输入走 uitest uiInput，音频走蓝牙 A2DP，全部由电脑发起。
-</value>
+支持 HarmonyOS NEXT 5.0.0（API 12）及以上；已在 OpenHarmony 7.0.0.111（API 26）真机实测。
+画面走设备侧投屏服务，输入走 uitest uiInput，音频走蓝牙 A2DP，全部由电脑发起。</value>
   </data>
 
   <!-- 关于页 -->

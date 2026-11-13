@@ -2,7 +2,7 @@
 
 在 Windows 上实时镜像并操控 HarmonyOS NEXT 手机。手机端**零安装**，只用系统自带的 hdc 无线调试。
 
-当前版本 **0.2.0** · Windows 10/11 · .NET 8 桌面运行时
+当前版本 **0.2.1** · Windows 10/11 · .NET 8 桌面运行时
 
 ---
 
@@ -25,28 +25,24 @@
 ## 三、环境要求
 
 - **电脑**：Windows 10 2004 及以上（音频接收需要 10.0.19041 以上）、.NET 8 桌面运行时
-- **手机**：HarmonyOS NEXT 及以上，开启「无线调试」（开发者选项里），与电脑在同一局域网
+- **手机**：HarmonyOS NEXT 5.0.0（API 12）及以上，开启「无线调试」（开发者选项里），与电脑在同一局域网；已在 OpenHarmony 7.0.0.111（API 26）真机实测
 - 蓝牙音频：电脑与手机先完成一次蓝牙配对
 
 ## 四、安装
 
-### 方式一：默认位置
+**双击 `HdcMirror-Setup.exe`** 即可，安装界面里能直接改安装位置：
 
-双击 `HdcMirror-win-Setup.exe`。装在 `%LOCALAPPDATA%\HdcMirror`，无需管理员权限。
+- 默认位置 `C:\HdcMirror`，可以直接把盘符改掉（例如改成 `D:\Programs`），也可以点「浏览…」选目录
+- 程序会自动在你选的目录下补 `HdcMirror` 子文件夹：填 `D:\Programs` → 实际装到 `D:\Programs\HdcMirror`
+- 装完可以直接勾启动
 
-### 方式二：自选安装位置
-
-双击 **`HdcMirror-install.cmd`**：
-
-1. 弹出目录选择框，选一个目录（例如 `D:\Programs`）
-2. 脚本会自动在末尾补 `HdcMirror` 子目录（实际装到 `D:\Programs\HdcMirror`）
-3. 装完可直接启动
-
-也可以命令行指定：`HdcMirror-install.cmd` 同级目录下执行
+想完全静默（脚本/批量部署）：
 
 ```
-powershell -ExecutionPolicy Bypass -File install.ps1 -InstallRoot "D:\Programs" -Silent
+HdcMirror-Setup.exe --installto "D:\Programs\HdcMirror" --silent
 ```
+
+> 安装界面由本项目自带（`src/HdcMirror.Installer`），内嵌官方 Velopack 安装载荷；`HdcMirror-win-Setup.exe` 保留给脚本与更新流程使用。
 
 ### 缺运行时会怎样
 
@@ -101,7 +97,7 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 **全部在安装目录下**：`<安装根>\data`
 
 ```
-<安装根>\              例：%LOCALAPPDATA%\HdcMirror 或 D:\Programs\HdcMirror
+<安装根>\              例：C:\HdcMirror 或 D:\Programs\HdcMirror
 ├─ current\            程序本体（升级时整体替换）
 ├─ packages\           安装包缓存
 ├─ Update.exe          Velopack 更新器
@@ -157,6 +153,7 @@ powershell -File tools\pack\build-release.ps1
 
 | 版本 | 日期 | 要点 |
 | --- | --- | --- |
+| 0.2.1 | 2026-11-14 | 安装程序自带位置选择界面（默认 `C:\HdcMirror`，可改盘/浏览）；关于页与 README 写明支持 HarmonyOS NEXT 5.0.0（API 12）及以上、已在 API 26 实测 |
 | 0.2.0 | 2026-11-14 | 安装包支持自选安装位置；数据目录改到安装目录下 `data\`；关于页重做（仓库/反馈/许可三卡片）；设备管理移入设置菜单；取消 Ctrl+Q；镜像窗左下角固定显示连接方式与帧率；音频按钮按真实状态高亮、修掉「有声音却显示等待」 |
 | 0.1.1 | 2026-11-12 | 输入改走 `uitest` 注入，修掉点击无反应；转发清理改双端规格；删除触摸点调试功能；控制条重排、窗口按钮永不隐藏 |
 | 0.1.0 | 2026-11-11 | 极简 FFmpeg（183.9 MB → 5.19 MB），Setup 163 MB → 18 MB；框架依赖发布 + 安装时检测运行时；中英双语 |

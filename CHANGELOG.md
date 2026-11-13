@@ -1,5 +1,21 @@
 ﻿# 更新日志
 
+## 0.2.1 — 2026-11-14
+
+安装程序自己带位置选择，支持和兼容范围写明白。
+
+### 安装
+
+- 新增 `HdcMirror-Setup.exe`（`src/HdcMirror.Installer`）：双击就是图形安装界面，**默认 `C:\HdcMirror`，可改盘符、可点「浏览…」选目录**，自动补 `HdcMirror` 子文件夹
+- 安装界面内嵌官方 Velopack 载荷，装完可直接启动；`--installto <目录> --silent` 仍可用于脚本部署
+- `HdcMirror-install.cmd` / `install.ps1` 保留为命令行备用路径
+
+### 文档
+
+- 关于页说明新增一行：支持 HarmonyOS NEXT 5.0.0（API 12）及以上，已在 OpenHarmony 7.0.0.111（API 26）真机实测
+- README 同步写明系统支持范围与新安装方式
+
+
 ## 0.2.0 — 2026-11-14
 
 把「装在哪儿、数据放哪儿」交回给用户，并把界面收到一致的一套。
