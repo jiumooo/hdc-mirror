@@ -32,13 +32,13 @@
         <StackPanel Grid.Row="1" VerticalAlignment="Center">
             <ui:Button
                 x:Name="ChineseButton"
-                Height="42"
+                MinHeight="42"
                 HorizontalAlignment="Stretch"
                 Click="OnChineseClick"
                 Content="{x:Static res:Strings.Lang_Chinese}" />
             <ui:Button
                 x:Name="EnglishButton"
-                Height="42"
+                MinHeight="42"
                 Margin="0,10,0,0"
                 HorizontalAlignment="Stretch"
                 Click="OnEnglishClick"

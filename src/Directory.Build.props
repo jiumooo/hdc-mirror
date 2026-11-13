@@ -5,7 +5,7 @@
     M 里程碑推进时只改这里的 <Version>，csproj / 脚本 / 安装包一律不得重复声明。
   -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>HdcMirror</Product>
     <Company>HdcMirror</Company>
     <NeutralLanguage>zh-CN</NeutralLanguage>

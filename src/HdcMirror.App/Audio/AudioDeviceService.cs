@@ -72,6 +72,18 @@ public static class AudioDeviceService
     /// <summary>MTA 线程最长等多久；超时就放弃，绝不拖住 UI。</summary>
     private const int MtaTimeoutMs = 5000;
 
+    /// <summary>
+    /// 按应用音频策略工厂的 IID 候选。系统在不同 Windows 版本里换了 IID：
+    /// ・AB3D4648-E242-459F-B02F-541C70306324：Windows 10 1903 及以后（本机 Win11 属这一档）
+    /// ・2A59116D-6C4F-45E0-A74F-707E3FEF9258：Windows 10 1803 / 1809
+    /// 两个接口的方法签名与顺序一致，只有激活 IID 不同，所以逐个试。
+    /// </summary>
+    private static readonly Guid[] PolicyConfigIids =
+    [
+        new("AB3D4648-E242-459F-B02F-541C70306324"),
+        new("2A59116D-6C4F-45E0-A74F-707E3FEF9258"),
+    ];
+
     /// <summary>未公开的激活类名。</summary>
     private const string PolicyConfigClassName = "Windows.Media.Internal.AudioPolicyConfig";
 
@@ -94,6 +106,50 @@ public static class AudioDeviceService
     public static IReadOnlyList<AudioOutputDevice> GetOutputDevices(ILogSink? log = null)
     {
         return RunOnMta(() => EnumerateCore(log), Array.Empty<AudioOutputDevice>());
+    }
+
+    /// <summary>
+    /// 取系统当前默认播放设备（多媒体角色）的端点 ID；取不到返回空串。
+    /// 用于「跟随系统默认输出」——用户在 Windows 里换输出设备后，我们据此重新路由子进程。
+    /// </summary>
+    /// <param name="log">可选日志出口。</param>
+    /// <returns>端点 ID；失败为空串（不抛异常）。</returns>
+    public static string GetDefaultRenderDeviceId(ILogSink? log = null)
+    {
+        return RunOnMta(() => DefaultDeviceCore(log), string.Empty);
+    }
+
+    private static string DefaultDeviceCore(ILogSink? log)
+    {
+        IMMDeviceEnumerator? enumerator = null;
+        IMMDevice? device = null;
+        try
+        {
+            enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(MmDeviceEnumeratorClsid)!)!;
+            int hr = enumerator.GetDefaultAudioEndpoint(EDataFlowRender, ERoleMultimedia, out device);
+            if (hr != 0 || device is null)
+            {
+                log?.Write(LogLevel.Debug, "audio", "读取默认播放设备失败，HRESULT=" + Hr(hr));
+                return string.Empty;
+            }
+
+            if (device.GetId(out string id) != 0 || string.IsNullOrWhiteSpace(id))
+            {
+                return string.Empty;
+            }
+
+            return id.Trim();
+        }
+        catch (COMException ex)
+        {
+            log?.Write(LogLevel.Debug, "audio", "读取默认播放设备异常：" + ex.Message, ex);
+            return string.Empty;
+        }
+        finally
+        {
+            Release(device);
+            Release(enumerator);
+        }
     }
 
     /// <summary>
@@ -132,6 +188,71 @@ public static class AudioDeviceService
         return ok;
     }
 
+    /// <summary>
+    /// 读取某个进程当前被持久化的输出设备 ID（仅用于诊断/验证）；读不到返回空串。
+    /// </summary>
+    public static string GetPersistedDeviceId(int processId, ILogSink? log = null)
+        => RunOnMta(() => ReadPersistedCore(processId, log), string.Empty);
+
+    private static string ReadPersistedCore(int processId, ILogSink? log)
+    {
+        IntPtr classHString = IntPtr.Zero;
+        IntPtr factoryPtr = IntPtr.Zero;
+        try
+        {
+            if (WindowsCreateString(PolicyConfigClassName, PolicyConfigClassName.Length, out classHString) != 0)
+            {
+                return string.Empty;
+            }
+
+            int hr = -1;
+            foreach (Guid candidate in PolicyConfigIids)
+            {
+                Guid iid = candidate;
+                hr = RoGetActivationFactory(classHString, ref iid, out factoryPtr);
+                if (hr == 0 && factoryPtr != IntPtr.Zero)
+                {
+                    break;
+                }
+
+                factoryPtr = IntPtr.Zero;
+            }
+
+            if (hr != 0 || factoryPtr == IntPtr.Zero)
+            {
+                return string.Empty;
+            }
+
+            // .NET 不支持把 IInspectable 接口做 COM 互操作（PlatformNotSupportedException），
+            // 所以不走接口转换，直接按 vtable 顺序调用：IInspectable 占 0~2，Get 是第 4 个槽。
+            int getHr = InvokeGetPersisted(factoryPtr, (uint)processId, EDataFlowRender, ERoleMultimedia, out IntPtr deviceHString);
+            if (getHr != 0 || deviceHString == IntPtr.Zero)
+            {
+                log?.Write(LogLevel.Debug, "audio", "读取按应用路由失败，HRESULT=" + Hr(getHr));
+                return string.Empty;
+            }
+
+            return Marshal.PtrToStringUni(deviceHString) ?? string.Empty;
+        }
+        catch (COMException ex)
+        {
+            log?.Write(LogLevel.Debug, "audio", "读取按应用路由异常：" + ex.Message, ex);
+            return string.Empty;
+        }
+        finally
+        {
+            if (factoryPtr != IntPtr.Zero)
+            {
+                Marshal.Release(factoryPtr);
+            }
+
+            if (classHString != IntPtr.Zero)
+            {
+                WindowsDeleteString(classHString);
+            }
+        }
+    }
+
     // ── 枚举 ────────────────────────────────────────────────────────────
 
     private static IReadOnlyList<AudioOutputDevice> EnumerateCore(ILogSink? log)
@@ -141,7 +262,7 @@ public static class AudioDeviceService
         IMMDeviceCollection? collection = null;
         try
         {
-            enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+            enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(MmDeviceEnumeratorClsid)!)!;
             int hr = enumerator.EnumAudioEndpoints(EDataFlowRender, DeviceStateActive, out collection);
             if (hr != 0 || collection is null)
             {
@@ -244,7 +365,6 @@ public static class AudioDeviceService
         IntPtr classHString = IntPtr.Zero;
         IntPtr deviceHString = IntPtr.Zero;
         IntPtr factoryPtr = IntPtr.Zero;
-        object? factoryObject = null;
         try
         {
             if (WindowsCreateString(PolicyConfigClassName, PolicyConfigClassName.Length, out classHString) != 0
@@ -254,18 +374,24 @@ public static class AudioDeviceService
                 return false;
             }
 
-            Guid iid = typeof(IAudioPolicyConfigFactory).GUID;
-            int hr = RoGetActivationFactory(classHString, ref iid, out factoryPtr);
-            if (hr != 0 || factoryPtr == IntPtr.Zero)
+            int hr = -1;
+            foreach (Guid candidate in PolicyConfigIids)
             {
-                log?.Write(LogLevel.Warn, "audio", "取不到音频策略工厂，HRESULT=" + Hr(hr));
-                return false;
+                Guid iid = candidate;
+                hr = RoGetActivationFactory(classHString, ref iid, out factoryPtr);
+                if (hr == 0 && factoryPtr != IntPtr.Zero)
+                {
+                    log?.Write(LogLevel.Info, "audio", "按应用路由启用：策略工厂接口 " + candidate.ToString("B"));
+                    break;
+                }
+
+                factoryPtr = IntPtr.Zero;
             }
 
-            factoryObject = Marshal.GetObjectForIUnknown(factoryPtr);
-            if (factoryObject is not IAudioPolicyConfigFactory factory)
+            if (hr != 0 || factoryPtr == IntPtr.Zero)
             {
-                log?.Write(LogLevel.Warn, "audio", "音频策略工厂接口不匹配");
+                log?.Write(LogLevel.Warn, "audio", "取不到音频策略工厂，HRESULT=" + Hr(hr)
+                    + "（两个 IID 都不接受，本机可能不支持按应用路由）");
                 return false;
             }
 
@@ -276,11 +402,8 @@ public static class AudioDeviceService
                 return false;
             }
 
-            int setHr = factory.SetPersistedDefaultAudioEndpoint(
-                (uint)processId,
-                EDataFlowRender,
-                ERoleMultimedia,
-                deviceHString);
+            // 同上：裸 vtable 调用，Set 是第 4 个槽（0~2 是 IInspectable 的三个方法）。
+            int setHr = InvokeSetPersisted(factoryPtr, (uint)processId, EDataFlowRender, ERoleMultimedia, deviceHString);
             if (setHr != 0)
             {
                 log?.Write(LogLevel.Warn, "audio", "设置按应用播放设备被拒，HRESULT=" + Hr(setHr));
@@ -321,7 +444,6 @@ public static class AudioDeviceService
                 _ = WindowsDeleteString(classHString);
             }
 
-            Release(factoryObject);
             if (factoryPtr != IntPtr.Zero)
             {
                 _ = Marshal.Release(factoryPtr);
@@ -374,6 +496,36 @@ public static class AudioDeviceService
 
         return result;
     }
+
+    /// <summary>IAudioPolicyConfigFactory::SetPersistedDefaultAudioEndpoint 的裸签名（stdcall）。</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int SetPersistedFn(IntPtr self, uint processId, int flow, int role, IntPtr deviceId);
+
+    /// <summary>IAudioPolicyConfigFactory::GetPersistedDefaultAudioEndpoint 的裸签名（stdcall）。</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetPersistedFn(IntPtr self, uint processId, int flow, int role, out IntPtr deviceId);
+
+    /// <summary>裸调 Set（vtable 第 4 槽：IInspectable 的前三个是 QueryInterface/AddRef/Release）。</summary>
+    private static int InvokeSetPersisted(IntPtr factory, uint processId, int flow, int role, IntPtr deviceId)
+    {
+        IntPtr vtable = Marshal.ReadIntPtr(factory);
+        IntPtr slot = Marshal.ReadIntPtr(vtable, 3 * IntPtr.Size);
+        var call = (SetPersistedFn)Marshal.GetDelegateForFunctionPointer(slot, typeof(SetPersistedFn));
+        return call(factory, processId, flow, role, deviceId);
+    }
+
+    /// <summary>裸调 Get（vtable 第 5 槽）。</summary>
+    private static int InvokeGetPersisted(IntPtr factory, uint processId, int flow, int role, out IntPtr deviceId)
+    {
+        IntPtr vtable = Marshal.ReadIntPtr(factory);
+        IntPtr slot = Marshal.ReadIntPtr(vtable, 4 * IntPtr.Size);
+        var call = (GetPersistedFn)Marshal.GetDelegateForFunctionPointer(slot, typeof(GetPersistedFn));
+        return call(factory, processId, flow, role, out deviceId);
+    }
+
+    /// <summary>MMDeviceEnumerator 的 CLSID（{BCDE0395-E52F-467C-8E3D-C4579291692E}）。用 CLSID 现建实例、不再声明 [ComImport] coclass：
+    /// 两个文件里各有一份同名嵌套 coclass 会让 CLR 的 interop 类型缓存串味，导致 InvalidCastException（对象与目标同名却转不过去）。</summary>
+    private static readonly Guid MmDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
 
     private static string Hr(int hr) => "0x" + hr.ToString("X8", CultureInfo.InvariantCulture);
 
@@ -454,11 +606,6 @@ public static class AudioDeviceService
         public int padding2;
     }
 
-    [ComImport]
-    [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    private class MMDeviceEnumeratorComObject
-    {
-    }
 
     [ComImport]
     [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]

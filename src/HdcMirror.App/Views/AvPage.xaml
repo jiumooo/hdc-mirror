@@ -7,153 +7,19 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20,10,20,196">
-            <TextBlock
-                FontSize="20"
-                FontWeight="Bold"
-                Text="{x:Static res:Strings.Menu_Settings_Av}" />
+            <TextBlock FontSize="20" FontWeight="Bold" Text="{x:Static res:Strings.Menu_Settings_Audio}" />
+            <TextBlock Margin="0,6,0,14" FontSize="12" Opacity="0.7" Text="{x:Static res:Strings.Settings_AudioRoleHint}" TextWrapping="Wrap" />
 
-            <TextBlock
-                Margin="0,6,0,14"
-                FontSize="12"
-                Opacity="0.7"
-                Text="{x:Static res:Strings.Settings_EffectiveHint}"
-                TextWrapping="Wrap" />
-
-            <!--  画质  -->
-            <Border
-                Padding="16"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                CornerRadius="8">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_Quality}" />
-
-                    <Grid Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="150" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_Preset}" />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="PresetBox"
-                            Grid.Column="1"
-                            Height="32"
-                            VerticalAlignment="Center"
-                            SelectionChanged="OnPresetChanged">
-                            <ComboBoxItem Content="{x:Static res:Strings.Preset_Ultra}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.Preset_High}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.Preset_Balanced2}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.Preset_Smooth}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.Preset_Custom}" />
-                        </ComboBox>
-                    </Grid>
-
-
-                    <TextBlock x:Name="PresetDetail" Margin="0,8,0,0" FontSize="11" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock Style="{StaticResource FieldHintStyle}" Text="{x:Static res:Strings.Settings_PresetHint}" />
-
-                    <Grid Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_FrameRate}" />
-                            <TextBlock
-                                x:Name="FrameRateDetail"
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Opacity="0.72"
-                                TextWrapping="Wrap" />
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Opacity="0.6"
-                                Text="{x:Static res:Strings.Settings_FrameRateHint}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="FrameRateBox"
-                            Grid.Column="1"
-                            Height="32"
-                            VerticalAlignment="Center"
-                            SelectionChanged="OnFrameRateChanged">
-                            <ComboBoxItem Content="30" />
-                            <ComboBoxItem Content="60" />
-                        </ComboBox>
-                    </Grid>
-
-
-                    <Grid Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_BitRate}" />
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Opacity="0.6"
-                                Text="{x:Static res:Strings.Settings_BitRateHint}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="BitRateBox"
-                            Grid.Column="1"
-                            Height="32"
-                            VerticalAlignment="Center"
-                            SelectionChanged="OnBitRateChanged">
-                            <ComboBoxItem Content="4" />
-                            <ComboBoxItem Content="8" />
-                            <ComboBoxItem Content="16" />
-                            <ComboBoxItem Content="24" />
-                        </ComboBox>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!--  音频接收：手机当发射端、电脑当接收端  -->
             <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_AudioReceive}" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        FontSize="12"
-                        Opacity="0.7"
-                        Text="{x:Static res:Strings.Settings_AudioRoleHint}"
-                        TextWrapping="Wrap" />
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static res:Strings.Settings_AudioReceive}" />
 
-                    <StackPanel
-                        Margin="0,12,0,0"
-                        Orientation="Horizontal">
-                        <ui:Button
-                            x:Name="AudioToggleButton"
-                            Height="30"
-                            MinWidth="96"
-                            Click="OnAudioToggleClick"
-                            Content="{x:Static res:Strings.Settings_AudioStart}" />
-                        <ui:Button
-                            Height="30"
-                            Margin="8,0,0,0"
-                            Padding="12,0"
-                            Click="OnOpenSoundSettingsClick"
-                            Content="{x:Static res:Strings.Settings_AudioOpenSound}" />
+                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                        <ui:Button x:Name="AudioToggleButton" MinHeight="32" MinWidth="96" Click="OnAudioToggleClick" Content="{x:Static res:Strings.Settings_AudioStart}" />
+                        <ui:Button MinHeight="32" Margin="8,0,0,0" Padding="12,0" Click="OnOpenSoundSettingsClick" Content="{x:Static res:Strings.Settings_AudioOpenSound}" />
                     </StackPanel>
 
-                    <TextBlock
-                        x:Name="AudioStateText"
-                        Margin="0,10,0,0"
-                        FontSize="12"
-                        Text="{x:Static res:Strings.Settings_AudioState_Idle}"
-                        TextWrapping="Wrap" />
+                    <TextBlock x:Name="AudioStateText" Margin="0,10,0,0" FontSize="12" Text="{x:Static res:Strings.Settings_AudioState_Idle}" TextWrapping="Wrap" />
 
                     <Grid Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
@@ -163,146 +29,18 @@
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock FontSize="13" Text="{x:Static res:Strings.Settings_AudioOutput}" />
                         </StackPanel>
-                        <StackPanel
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal">
-                            <ComboBox
-                                x:Name="OutputDeviceBox"
-                                Width="220"
-                                Height="32"
-                                VerticalAlignment="Center"
-                                SelectionChanged="OnOutputDeviceChanged" />
-                            <ui:Button
-                                Height="32"
-                                Margin="8,0,0,0"
-                                Padding="12,0"
-                                Click="OnRefreshDevicesClick"
-                                Content="{x:Static res:Strings.Ui_Refresh}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal">
+                            <ComboBox x:Name="OutputDeviceBox" Width="220" MinHeight="36" VerticalAlignment="Center" SelectionChanged="OnOutputDeviceChanged" VerticalContentAlignment="Center" />
+                            <ui:Button MinHeight="32" Margin="8,0,0,0" Padding="12,0" Click="OnRefreshDevicesClick" Content="{x:Static res:Strings.Ui_Refresh}" />
                         </StackPanel>
                     </Grid>
                     <TextBlock Style="{StaticResource FieldHintStyle}" Text="{x:Static res:Strings.Settings_AudioOutputHint}" />
 
-                    <CheckBox
-                        x:Name="AutoAudioBox"
-                        Margin="0,14,0,0"
-                        Checked="OnAutoAudioChanged"
-                        Content="{x:Static res:Strings.Settings_AutoAudio}"
-                        FontSize="13"
-                        Unchecked="OnAutoAudioChanged" />
+                    <CheckBox x:Name="AutoAudioBox" Margin="0,14,0,0" Checked="OnAutoAudioChanged" Content="{x:Static res:Strings.Settings_AutoAudio}" FontSize="13" Unchecked="OnAutoAudioChanged" />
 
-                    <TextBlock
-                        Margin="0,14,0,0"
-                        FontSize="12"
-                        LineHeight="20"
-                        Opacity="0.75"
-                        Text="{x:Static res:Strings.Settings_AudioSteps}"
-                        TextWrapping="Wrap" />
+                    <TextBlock Margin="0,14,0,0" FontSize="12" LineHeight="20" Opacity="0.75" Text="{x:Static res:Strings.Settings_AudioSteps}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
-
-            <!--  音量：默认以手机音量为主，电脑侧钉 100%，避免两级衰减  -->
-            <Border Style="{StaticResource CardStyle}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_Volume}" />
-
-                    <CheckBox
-                        x:Name="FollowPhoneBox"
-                        Margin="0,12,0,0"
-                        Checked="OnFollowPhoneChanged"
-                        Content="{x:Static res:Strings.Settings_VolumeFollow}"
-                        FontSize="13"
-                        Unchecked="OnFollowPhoneChanged" />
-
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        FontSize="12"
-                        LineHeight="18"
-                        Opacity="0.75"
-                        Text="{x:Static res:Strings.Settings_VolumeFollowHint}"
-                        TextWrapping="Wrap" />
-
-                    <Grid Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Slider
-                            x:Name="VolumeSlider"
-                            Grid.Column="0"
-                            IsSnapToTickEnabled="True"
-                            Maximum="100"
-                            Minimum="0"
-                            TickFrequency="5"
-                            ValueChanged="OnVolumeSliderChanged" />
-                        <TextBlock
-                            x:Name="VolumeText"
-                            Grid.Column="1"
-                            Width="52"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            TextAlignment="Right" />
-                    </Grid>
-
-                    <TextBlock
-                        x:Name="VolumeHintText"
-                        Margin="0,6,0,0"
-                        FontSize="12"
-                        Opacity="0.75"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <!--  锁屏画面：定时抓手机屏幕当背景  -->
-            <Border Style="{StaticResource CardStyle}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_LockShot}" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        FontSize="12"
-                        Opacity="0.7"
-                        Text="{x:Static res:Strings.Settings_LockShotTip}"
-                        TextWrapping="Wrap" />
-
-                    <CheckBox
-                        x:Name="LockShotBox"
-                        Margin="0,14,0,0"
-                        Checked="OnLockShotChanged"
-                        Content="{x:Static res:Strings.Settings_LockShotAuto}"
-                        FontSize="13"
-                        Unchecked="OnLockShotChanged" />
-
-                    <StackPanel
-                        Margin="0,12,0,0"
-                        Orientation="Horizontal">
-                        <ui:Button
-                            Height="30"
-                            MinWidth="96"
-                            Click="OnCaptureNowClick"
-                            Content="{x:Static res:Strings.Settings_LockShotNow}" />
-                        <TextBlock
-                            x:Name="LockShotText"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            Opacity="0.75"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <TextBlock
-                x:Name="SavedText"
-                Margin="0,12,0,0"
-                FontSize="12"
-                Opacity="0"
-                Text="{x:Static res:Strings.Settings_EffectiveHint}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

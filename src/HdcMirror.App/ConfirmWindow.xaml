@@ -55,13 +55,13 @@
             <ui:Button
                 x:Name="CancelButton"
                 MinWidth="80"
-                Height="32"
+                MinHeight="32"
                 Click="OnCancelClick"
                 Content="{x:Static res:Strings.Ui_Cancel}" />
             <ui:Button
                 x:Name="OkButton"
                 MinWidth="80"
-                Height="32"
+                MinHeight="32"
                 Margin="8,0,0,0"
                 Appearance="Danger"
                 Click="OnOkClick"

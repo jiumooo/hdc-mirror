@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System;
 using System.Globalization;
 using System.IO;
@@ -39,16 +39,25 @@ public partial class MirrorWindow
     private const double ScreenCornerRadius = 10d;
 
     /// <summary>页面覆盖层打开时，缩小后的虚拟屏目标宽度。</summary>
-    private const double ThumbTargetWidth = 180d;
+    private const double ThumbTargetWidth = 128d;
+
+    /// <summary>悬浮窗高度固定按竖屏比例，保证横竖屏一致。</summary>
+    private const double ThumbTargetHeight = 276d;
 
     /// <summary>缩小 / 还原动画时长（毫秒）。</summary>
     private const double ScreenAnimationMs = 180d;
 
     /// <summary>触摸移动节流（毫秒）。</summary>
-    private const int MoveThrottleMs = 16;
 
     /// <summary>鼠标按下后位移小于该值（DIP）视为点击，不进设备做 down/move/up。</summary>
+    private const int MoveThrottleMs = 16;
     private const double ClickMaxDistance = 8d;
+
+    /// <summary>拖动分段下发的最小位移（设备像素）：太碎会把 uitest 命令排满，太粗会一顿一顿。</summary>
+    private const int DragChunkPixels = 24;
+
+    /// <summary>拖动速度（px/s）：越高越跟手，4000 以上容易被当成甩动。</summary>
+    private const int DragVelocity = 3000;
 
     /// <summary>按下超过该时长（毫秒）才补发 touchDown，让设备侧识别长按。</summary>
     private const int LongPressMs = 400;
@@ -73,18 +82,31 @@ public partial class MirrorWindow
     };
 
     /// <summary>前台包名解析时认的字段名。</summary>
-    private static readonly string[] BundleKeys =
-    {
-        "bundle name",
-        "bundleName",
-        "bundle_name",
-    };
-
     private readonly ILogSink _log;
-    private readonly DispatcherTimer _frameTimer;
+
+    // 诊断：画面「发布 → 渲染」延迟
+    private double _lagSum;
+    private long _lagMax;
+    private long _lagCount;
+    private double _tickGapSum;
+    private long _tickGapMax;
+    private double _renderSum;
+    private long _lastTickTicks;
+    private long _lastSampledPublished;
+    private long _lastMoveTicks;
+
 
     private MirrorSession? _session;
     private WriteableBitmap? _screenBitmap;
+
+    /// <summary>上次扫描黑边的时刻（节流用）。</summary>
+    private long _cropStamp;
+
+    /// <summary>当前的黑边放大系数（1 = 不需要放大）。</summary>
+    private double _cropScale = 1d;
+
+    /// <summary>上一次测到的黑边宽度，用来要求连续两次一致再动手，避免画面轻微变化时抖动。</summary>
+    private int _cropBars;
     private int _screenWidth;
     private int _screenHeight;
 
@@ -104,15 +126,43 @@ public partial class MirrorWindow
 
     private double _aspect = 1260d / 2720d;
 
+    /// <summary>转横屏前记住的竖屏窗口（位置+大小），转回竖屏时原样还原。</summary>
+    private Rect? _portraitRestore;
+
+    /// <summary>横屏时窗口被 Math.Clamp 搬进屏幕的临时位移，恢复竖屏时要补回去。</summary>
+    private Point _landscapeOffset;
+
+    /// <summary>转横屏后窗口实际落点（用来判断用户有没有自己再拖过）。</summary>
+    private Point? _landscapePlaced;
+
     /// <summary>防重入：代码在改窗口尺寸时不要再触发比例校正。</summary>
     private bool _fitting;
 
-    private UitestInputChannel? _input;
+    /// <summary>输入通道重建锁，防止多路手势同时重建。</summary>
+
+    /// <summary>每 3 秒看一眼输入通道，断了就重建（不打扰用户）。</summary>
+
+    /// <summary>连续重建失败次数，用于指数退避。</summary>
+
+    /// <summary>下一次允许尝试重建的时间戳（TickCount64）。</summary>
     private HdcRunner? _inputRunner;
+
+    /// <summary>常驻控制通道：连接设备后就一直保持，不等要操作才去建。</summary>
+    private UitestInputChannel? _input;
+
+    /// <summary>这一笔是否正走常驻通道（true = 逐帧 touchMove，画面实时跟着走）。</summary>
+    private bool _streaming;
+
+    /// <summary>设备固件拒绝 Gestures 连续触摸（一收 touchDown 就断链）时置真，本会话不再尝试流式。</summary>
+    private bool _streamUnusable;
+
+    /// <summary>常驻通道的保活/重建计时器。</summary>
+    private DispatcherTimer? _inputKeepAlive;
     private readonly HdcDevice _device;
 
     /// <summary>蓝牙音频接收器：与「音画与音频」设置页共用同一实例（见 Audio\AudioSinkHub.cs）。</summary>
     private readonly AudioSinkHost _audio = AudioSinkHub.Instance;
+    private bool _audioStartedByWindow;
 
     /// <summary>鼠标按住中（还没抬起、也没取消）。抬起后立刻置 false，之后的 move 一律不注入。</summary>
     private bool _pressed;
@@ -130,15 +180,73 @@ public partial class MirrorWindow
     private long _pressTicks;
 
     /// <summary>上一次投递触摸移动的时间戳（毫秒），做 16ms 节流。</summary>
-    private long _lastMoveTicks;
 
     /// <summary>长按计时器：按住不动超过 400ms 才补发一次 touchDown。</summary>
     private DispatcherTimer? _longPressTimer;
 
     /// <summary>滚轮累计余量（设备像素），保证小幅度滚动也能累加成一次滑动。</summary>
-    private double _wheelRemainder;
+
+
+    /// <summary>正在跑的滑动发送循环；非 null 表示还有滑动在路上。</summary>
+
+    /// <summary>滚轮锚点：鼠标最后一次落在画面上的设备像素坐标。</summary>
+    private System.Drawing.Point _wheelAnchor;
+    private double _wheelPixels;
+    private long _wheelBurstStart;
+    private long _wheelBurstEnd;
+    private DispatcherTimer? _wheelFlush;
+    private long _lastWheelTicks;
+
+    /// <summary>防止 <see cref="ClampWindowToWorkArea"/> 在自己改尺寸引发的回调里重入。</summary>
+    private bool _clamping;
+
+    /// <summary>尺寸拖拽去抖：连续事件只做最后一次校正，避免不停重建渲染目标（Win32 1816「配额不足」的根源）。</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _fitTimer = new()
+    {
+        Interval = System.TimeSpan.FromMilliseconds(90),
+    };
+
+    /// <summary>去抖期间记下最后一次拖拽的主方向：true = 以宽为准。</summary>
+    private bool _fitKeepWidth = true;
+
+    /// <summary>上一次尺寸夹取的时间戳，用来给夹取限频。</summary>
+    private long _lastClampTicks;
+
+    /// <summary>上一次桌面翻页的时间戳，用于翻页冷却。</summary>
+    private long _lastPageFlipTicks;
+
+    /// <summary>上一次因画幅变化换方向的时间戳，防止比例抖动来回切。</summary>
+    private long _lastOrientTicks;
+
+    /// <summary>界面线程心跳（毫秒时间戳），卡住时由看门狗发现并记日志。</summary>
+    private long _uiBeat;
+
+    /// <summary>窗口已关闭。</summary>
+    private bool _closed;
+
+    /// <summary>心跳计时器（界面线程）。</summary>
+    private System.Windows.Threading.DispatcherTimer? _uiHeartbeat;
+
+    /// <summary>看门狗线程。</summary>
+    private Task? _uiWatchdog;
+
+    /// <summary>设备侧当前是否有一个未抬起的触点：新一轮手势前必须先补一次 touchUp。</summary>
+
+    /// <summary>本次按下后鼠标是否移动超过点击容差（决定抬手发 swipe 还是 click）。</summary>
+    private bool _moved;
+
+    /// <summary>本次手势最后一个位置对应的设备坐标。</summary>
+    private System.Drawing.Point _lastDevice;
+
+    /// <summary>上一次已经发给设备的拖动终点：只把新增的那一段位移补发出去。</summary>
+    private System.Drawing.Point _lastSent;
+
+    /// <summary>是否有一条拖动命令正在设备侧执行（同一时刻只允许一条）。</summary>
+    private bool _dragInFlight;
 
     /// <summary>前台是否桌面（Launcher）：null = 还没拿到可靠信号。</summary>
+
+    private DispatcherTimer? _launcherPoll;
     private bool? _launcher;
 
     /// <summary>上次探测前台包名的时间戳（毫秒）。</summary>
@@ -203,21 +311,23 @@ public partial class MirrorWindow
 
         InitializeComponent();
 
+        // 和主窗口（FluentWindow + Round）保持同一套圆角。
+        SourceInitialized += (_, __) => ApplyRoundedCorners();
+
         TitleText.Text = string.IsNullOrWhiteSpace(title) ? device.Serial : title!;
         DeviceSerial = device.Serial;
         Title = TitleText.Text;
 
-        _frameTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(16),
-        };
-        _frameTimer.Tick += OnFrameTick;
+        // 用合成帧回调而不是 DispatcherTimer：前者跟显示器垂直同步走（≤16.7ms），
+        // 定时器在界面忙时会被排到 25ms 以上，画面就慢半拍。
+        System.Windows.Media.CompositionTarget.Rendering += OnCompositionRender;
 
         ScreenHost.MouseLeftButtonDown += OnScreenLeftDown;
         ScreenHost.MouseMove += OnScreenMouseMove;
         ScreenHost.MouseLeftButtonUp += OnScreenLeftUp;
         ScreenHost.MouseLeave += OnScreenMouseLeave;
         ScreenHost.LostMouseCapture += OnScreenLostMouseCapture;
+        Deactivated += (_, __) => CancelGesture();
         ScreenHost.MouseWheel += OnScreenWheel;
         ScreenHost.MouseRightButtonUp += OnScreenRightUp;
         ScreenHost.Focusable = true;
@@ -229,8 +339,13 @@ public partial class MirrorWindow
 
         _audio.StateChanged += OnAudioStateChanged;
 
+        // 订阅完立刻按当前状态刷一次：音频可能在窗口创建前就已经接通（自动开启），
+        // 那时事件已经发过了，不补这一下按钮就一直是未选中态。
+        OnAudioStateChanged(_audio.State, string.Empty);
+
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
+        _fitTimer.Tick += OnFitTimerTick;
         StateChanged += OnStateChanged;
         Closing += OnWindowClosing;
     }
@@ -249,21 +364,96 @@ public partial class MirrorWindow
         ApplyInitialBounds();
         FitWindowToAspect(keepWidth: true);
         ClampWindowToWorkArea();
+
+        // 位置必须和主窗口一致：等比换算会改高度，钳制又可能把窗口挪走，
+        // 所以最后再按调用方给的 Left/Top 摆一次（只有放不下时才让钳制挪动）。
+        if (InitialBounds is { } posed)
+        {
+            Left = posed.Left;
+            Top = posed.Top;
+            ClampWindowToWorkArea();
+        }
         StartMirror();
         _ = ConnectInputAsync();
+
         ProbeLauncherAsync();
+
+        // 常驻轮询前台：700ms 一次，让「桌面/应用」判断始终新鲜（滚轮据此决定翻页还是滚动）。
+        if (_launcherPoll is null)
+        {
+            _launcherPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+            _launcherPoll.Tick += (_, __) => ProbeLauncherAsync();
+            _launcherPoll.Start();
+        }
+        StartUiWatchdog();
+
+        // 「连接设备后音频使用电脑输出」：勾上就在连接成功（镜像窗打开）时直接把接收端拉起来，
+        // 不再要求用户去点控制条上的喇叭。蓝牙 A2DP Sink 起来后手机端会自动把媒体声音投过来。
+        if (AppSettings.Current.AutoStartAudio && !_audio.IsRunning)
+        {
+            _ = StartAutoAudioAsync();
+        }
+
+        // 底部功能键：鼠标靠近窗口底部才滑出，离开后 1 秒自动收起
+        _navHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
+        _navHideTimer.Tick += (_, __) =>
+        {
+            _navHideTimer!.Stop();
+
+            // 光标停着不动时不会再有 MouseMove，NavBar.IsMouseOver 此时仍是 false（还没对它做命中测试），
+            // 所以必须直接问「光标现在在哪」：仍在底部热区就继续等，不能收起。
+            Point cursor = default;
+            try
+            {
+                cursor = Mouse.GetPosition(this);
+            }
+            catch (InvalidOperationException)
+            {
+                HideNavBar();
+                return;
+            }
+
+            if (NavBar.IsMouseOver || InNavHotZone(cursor))
+            {
+                _navHideTimer.Start();
+                return;
+            }
+
+            HideNavBar();
+        };
+        // 画面区域会 e.Handled 掉 MouseMove，所以用隧道事件 PreviewMouseMove 才能收到
+        PreviewMouseMove += OnWindowMouseMove;
+        MouseLeave += OnPreviewMouseLeave;
     }
 
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _frameTimer.Stop();
+        System.Windows.Media.CompositionTarget.Rendering -= OnCompositionRender;
+        StopUiWatchdog();
+
         _longPressTimer?.Stop();
+        _inputKeepAlive?.Stop();
+        _launcherPoll?.Stop();
+        UitestInputChannel? closing = _input;
+        _input = null;
+        if (closing is not null)
+        {
+            _ = closing.DisposeAsync();
+        }
         MirrorSession? session = _session;
         _session = null;
         session?.Dispose();
-        _ = DisposeInputAsync();
         // 不 Dispose：接收器是进程级单例，设置页还在用它；只退订事件，避免窗口对象被吊住。
         _audio.StateChanged -= OnAudioStateChanged;
+
+        // 关掉连接就得断开音频：否则手机声音会一直从电脑出。
+        // 只停「本窗口自动开的那次」——用户在设置页手动开的，不归窗口管。
+        if (_audioStartedByWindow && _audio.IsRunning)
+        {
+            _audio.Stop();
+            _audioStartedByWindow = false;
+            _log.Info("audio", "镜像窗已关闭：停止音频接收并还原系统默认输出");
+        }
 
         RememberGeometry();
     }
@@ -284,23 +474,78 @@ public partial class MirrorWindow
         _fpsWindowStart = Environment.TickCount64;
         _fpsWindowFrames = 0;
 
-        _frameTimer.Start();
         ShowStatus(Strings.Status_Mirror_Starting);
     }
 
     // ── 帧渲染 ────────────────────────────────────────────────────
 
-    private void OnFrameTick(object? sender, EventArgs e)
+    private void OnCompositionRender(object? sender, EventArgs e)
     {
         MirrorSession? session = _session;
         if (session is null)
         {
-            _frameTimer.Stop();
             return;
         }
 
+        long tickStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_lastTickTicks != 0)
+        {
+            double gap = (tickStart - _lastTickTicks) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+            _tickGapSum += gap;
+            if (gap > _tickGapMax)
+            {
+                _tickGapMax = (long)Math.Ceiling(gap);
+            }
+        }
+
+        _lastTickTicks = tickStart;
+
         session.Frames.Consume(RenderFrame);
-        UpdateStatus(session);
+        _renderSum += (System.Diagnostics.Stopwatch.GetTimestamp() - tickStart) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+        ReportDisplayLag(session);
+        UpdateStatus(session);    }
+
+    /// <summary>诊断：解码线程发布图像的瞬间，到界面真正画上去，中间隔了多久。</summary>
+    private void ReportDisplayLag(MirrorSession session)
+    {
+        long published = session.Frames.LastPublishTicks;
+        long publishedCount = session.Frames.Published;
+        if (publishedCount == _lastSampledPublished)
+        {
+            return;
+        }
+
+        _lastSampledPublished = publishedCount;
+        if (published == 0)
+        {
+            return;
+        }
+
+        double lag = (System.Diagnostics.Stopwatch.GetTimestamp() - published) * 1000d
+                     / System.Diagnostics.Stopwatch.Frequency;
+        _lagSum += lag;
+        if (lag > _lagMax)
+        {
+            _lagMax = (long)Math.Ceiling(lag);
+        }
+
+        long count = ++_lagCount;
+        if (count % 60 == 0)
+        {
+            _log.Info("lag", string.Format(
+                CultureInfo.InvariantCulture,
+                "画面延迟：发布→渲染 平均 {0:0.0} ms，最大 {1} ms；界面帧间隔平均 {2:0.0} ms，最大 {3} ms；渲染耗时平均 {4:0.0} ms",
+                _lagSum / 60d,
+                _lagMax,
+                _tickGapSum / 60d,
+                _tickGapMax,
+                _renderSum / 60d));
+            _lagSum = 0;
+            _lagMax = 0;
+            _tickGapSum = 0;
+            _tickGapMax = 0;
+            _renderSum = 0;
+        }
     }
 
     private void RenderFrame(byte[] pixels, int width, int height, int stride)
@@ -333,8 +578,11 @@ public partial class MirrorWindow
 
             // 画面比例跟着真实帧走：设备转屏时按新比例换尺寸，中心点保持不动。
             double aspect = visibleWidth / (double)visibleHeight;
-            if (Math.Abs(aspect - _aspect) > 0.001)
+            long orientNow = System.Environment.TickCount64;
+            bool aspectJumped = Math.Abs(aspect - _aspect) / Math.Max(0.001d, _aspect) > 0.02d;
+            if (aspectJumped && orientNow - _lastOrientTicks > 800)
             {
+                _lastOrientTicks = orientNow;
                 _aspect = aspect;
                 SwitchOrientation();
             }
@@ -357,6 +605,9 @@ public partial class MirrorWindow
                 stride,
                 0,
                 0);
+
+            // 顺手判定「画面左右有没有黑边」：有就整体放大到看不见黑边（窗口大小不动）。
+            UpdateContentCrop(handle.AddrOfPinnedObject(), stride, visibleWidth, visibleHeight);
         }
         finally
         {
@@ -369,6 +620,10 @@ public partial class MirrorWindow
             _hasFrame = true;
             IdleHost.Visibility = Visibility.Collapsed;
             CaptureLastFrame();
+
+            // 首帧到达说明推流守护进程已经起来了 —— 它在启动时会把已建立的 8012 连接顶掉，
+            // 所以这一刻重建一次输入通道，用户的第一个手势就能生效。
+            _ = EnsureInputAsync();
         }
     }
 
@@ -504,24 +759,24 @@ public partial class MirrorWindow
 
         if (decoded == 0)
         {
+            // 首帧还没到：这一行先显示准备信息（此时 fps 没有意义）。
             ShowStatus(Strings.Status_Mirror_Starting);
             return;
         }
 
-        long? since = session.MillisecondsSinceLastFrame;
-        if (since is null || since >= 1500)
-        {
-            ShowStatus(Strings.Status_Mirror_Idle);
-            return;
-        }
-
-        // 只留帧率：缩放倍率已按用户要求整段去掉（连布局占位一起）。
-        ShowStatus(string.Format(
+        // 有帧之后左下角固定成「无线/有线 · N fps」。
+        // 画面静止时 fps 会掉到 0，也照样显示，不再换成「已连接 · …」这类提示。
+        StatusText.Text = string.Format(
             CultureInfo.CurrentCulture,
             Strings.Status_Mirror_Streaming,
             _screenWidth,
             _screenHeight,
-            _fps));
+            _fps);
+        StatusHost.ToolTip = null;
+        if (!_overlayOpen)
+        {
+            StatusHost.Visibility = Visibility.Visible;
+        }
     }
 
     /// <summary>左下角一直显示连接方式（无线 / 有线），帧率紧随其后。</summary>
@@ -531,19 +786,19 @@ public partial class MirrorWindow
     }
     private void ShowStatus(string text)
     {
-        StatusText.Text = text;
-        if (!_overlayOpen)
+        // 临时提示不抢左下角那一行（那里固定显示连接方式 + fps），只挂成悬浮提示；
+        // 首帧还没到的阶段才直接写进去。
+        StatusHost.ToolTip = text;
+        if (_fps <= 0)
         {
-            StatusHost.Visibility = Visibility.Visible;
+            StatusText.Text = text;
         }
     }
-
     private void OnMirrorStatus(MirrorStatus status, string? message)
     {
         switch (status)
         {
             case MirrorStatus.Failed:
-                _frameTimer.Stop();
                 ShowStatus(message ?? Strings.Err_Mirror_NoDevice);
                 ShowIdleLayer();
                 break;
@@ -762,6 +1017,29 @@ public partial class MirrorWindow
     // ── 音频（蓝牙 A2DP Sink）────────────────────────────────────
 
     /// <summary>控制条上的音频按钮：开＝把手机声音接到电脑，关＝断开。</summary>
+    /// <summary>连接成功时按设置自动开启音频接收；失败只落日志 + 状态栏，不弹框。</summary>
+    private async Task StartAutoAudioAsync()
+    {
+        // 给蓝牙栈一点时间：镜像窗刚开就抢 A2DP 端点容易拿到「设备忙」。
+        await Task.Delay(700).ConfigureAwait(true);
+
+        if (_audio.IsRunning || !AppSettings.Current.AutoStartAudio)
+        {
+            return;
+        }
+
+        ShowStatus(Strings.Status_Audio_Waiting);
+        if (_audio.Start())
+        {
+            _audioStartedByWindow = true;
+            _log.Info("audio", "连接设备后已自动开启音频接收（等待手机投射）");
+            return;
+        }
+
+        _log.Warn("audio", $"连接设备后自动开启音频失败：{_audio.LastError}");
+        ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_Audio_FailedFormat, _audio.LastError ?? "audio"));
+    }
+
     private void OnAudioToggleClick(object sender, RoutedEventArgs e)
     {
         if (_audio.IsRunning)
@@ -785,10 +1063,11 @@ public partial class MirrorWindow
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(new Action(() => OnAudioStateChanged(state, detail)));
+            // 事件是从子进程 stdout 的读取线程发上来的：必须切回 UI 线程，
+            // 之前这里写的是「不是 UI 线程就直接 return」，于是按钮永远不变色。
+            Dispatcher.BeginInvoke(new Action<AudioSinkState, string>(OnAudioStateChanged), state, detail);
             return;
         }
-
         // 镜像状态每帧都刷 StatusText，音频状态不能抢同一条线（会被覆盖掉），
         // 所以常态只改图标 + 悬停提示；NoDevice / Failed 这种要用户动手的才写一次状态栏。
         string tooltip;
@@ -797,7 +1076,7 @@ public partial class MirrorWindow
             case AudioSinkState.Starting:
             case AudioSinkState.WaitingForPhone:
                 // 静音字形：还没接通
-                AudioButton.Content = "\uE74F";
+                AudioButton.Content = "\uE767";   // 等待阶段也用喇叭字形，不闪「静音」图标
                 tooltip = Strings.Status_Audio_Waiting;
                 break;
 
@@ -825,6 +1104,14 @@ public partial class MirrorWindow
         }
 
         AudioButton.ToolTip = tooltip;
+        // 选中态：真的在电脑上出声（Connected）才高亮，未接通保持普通样式。
+        bool active = state == AudioSinkState.Connected;
+        AudioButton.Background = active
+            ? (Brush)new BrushConverter().ConvertFrom("#CC5EA9FF")!
+            : Brushes.Transparent;
+        AudioButton.Foreground = active
+            ? (Brush)new BrushConverter().ConvertFrom("#FFFFFFFF")!
+            : (Brush)new BrushConverter().ConvertFrom("#CCFFFFFF")!;
         _log.Write(LogLevel.Info, "App.Audio", "音频状态=" + state
             + (string.IsNullOrEmpty(detail) ? string.Empty : " 详情=" + detail));
     }
@@ -882,6 +1169,94 @@ public partial class MirrorWindow
     /// 按页签键打开对应页面。页面每次新建：主窗口改完设置再回镜像窗，这里拿到的一定是新实例，
     /// 不会出现「界面上改了、镜像窗还显示旧值」。
     /// </summary>
+    private DispatcherTimer? _navHideTimer;
+    private bool _navVisible;
+
+    /// <summary>鼠标靠近窗口底部（或已在功能键上）时滑出底部功能键，离开后延时收起。</summary>
+    private void OnWindowMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_overlayOpen)
+        {
+            return;
+        }
+
+        Point point;
+        try
+        {
+            point = e.GetPosition(this);
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        if (InNavHotZone(point) || NavBar.IsMouseOver)
+        {
+            ShowNavBar();
+        }
+        else
+        {
+            // 用户要求「鼠标移走就立马消失」：不走延时器，直接 140ms 动画收起
+            HideNavBar();
+        }
+    }
+
+    /// <summary>
+    /// 热区 = 底部功能键自身占的那块矩形再向外放 6px（用户要求「就按红框那部分区域」），
+    /// 不再用「距底部 N 像素」这种整条横幅判定。
+    /// </summary>
+    private bool InNavHotZone(Point point)
+    {
+        try
+        {
+            if (NavBar.ActualWidth <= 0d || NavBar.ActualHeight <= 0d)
+            {
+                return false;
+            }
+
+            Point origin = NavBar.TranslatePoint(new Point(0d, 0d), this);
+            var box = new Rect(origin, new Size(NavBar.ActualWidth, NavBar.ActualHeight));
+            box.Inflate(6d, 6d);
+            return box.Contains(point);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private void OnPreviewMouseLeave(object sender, MouseEventArgs e) => HideNavBar();
+
+    private void ShowNavBar()
+    {
+        _navHideTimer?.Stop();
+        if (_navVisible)
+        {
+            return;
+        }
+
+        _navVisible = true;
+        NavBar.IsHitTestVisible = true;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        NavBar.BeginAnimation(OpacityProperty, new DoubleAnimation(0d, 1d, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+        NavBarShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18d, 0d, TimeSpan.FromMilliseconds(180)) { EasingFunction = ease });
+    }
+
+    private void HideNavBar(bool immediate = false)
+    {
+        if (!_navVisible && !immediate)
+        {
+            return;
+        }
+
+        _navVisible = false;
+        NavBar.IsHitTestVisible = false;
+        TimeSpan duration = immediate ? TimeSpan.Zero : TimeSpan.FromMilliseconds(140);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        NavBar.BeginAnimation(OpacityProperty, new DoubleAnimation(1d, 0d, duration) { EasingFunction = ease });
+        NavBarShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0d, 18d, duration) { EasingFunction = ease });
+    }
+
     private void OpenOverlayTab(string key)
     {
         object page;
@@ -892,6 +1267,14 @@ public partial class MirrorWindow
             case "keys":
                 page = new KeysPage();
                 title = Strings.Menu_Settings_Keys;
+                break;
+            case "audio":
+                page = new AvPage();
+                title = Strings.Menu_Settings_Audio;
+                break;
+            case "video":
+                page = new VideoPage();
+                title = Strings.Menu_Settings_Video;
                 break;
             case "av":
                 page = new AvPage();
@@ -920,7 +1303,8 @@ public partial class MirrorWindow
             (OverlayTabDevices, "devices"),
             (OverlayTabGeneral, "general"),
             (OverlayTabKeys, "keys"),
-            (OverlayTabAv, "av"),
+            (OverlayTabVideo, "video"),
+            (OverlayTabAudio, "audio"),
         })
         {
             bool active = string.Equals(tag, key, StringComparison.Ordinal);
@@ -939,6 +1323,14 @@ public partial class MirrorWindow
         OverlayTitle.Text = title;
         PageHost.Content = page;
 
+        // 页面自带 PageRootStyle 的底部留白（给主窗左下缩略屏让位）在镜像窗里会让滚动条
+        // 页内容根（ScrollViewer 里的 StackPanel）自带 PageRootStyle 的 168px 底边距，
+        // 那是给主窗左下缩略屏让位的；镜像窗里这个留白会让滚动条提前结束、右下空一条。
+        if (FindScrollContent(page) is { } content)
+        {
+            content.Margin = new Thickness(content.Margin.Left, content.Margin.Top, content.Margin.Right, 16d);
+        }
+
         if (_overlayOpen)
         {
             return;
@@ -946,8 +1338,10 @@ public partial class MirrorWindow
 
         // 打开页面时先掐掉在途手势，避免残留 touchDown。
         CancelGesture();
+        HideNavBar(immediate: true);
         _overlayOpen = true;
         OverlayHost.Visibility = Visibility.Visible;
+        IdleHost.Visibility = Visibility.Collapsed;   // 页面打开时缩略屏只显示最后一帧，不显示设备信息列表
         StatusHost.Visibility = Visibility.Collapsed;
         AnimateScreenToThumbnail();
     }
@@ -977,27 +1371,29 @@ public partial class MirrorWindow
         _screenRestoreWidth = fromWidth;
         _screenRestoreHeight = fromHeight;
 
-        double availableWidth = Math.Max(120d, ScreenHost.ActualWidth);
         double availableHeight = Math.Max(120d, ScreenHost.ActualHeight);
-        double targetWidth = Math.Clamp(ThumbTargetWidth, 120d, Math.Max(120d, availableWidth * 0.5d));
-        double targetHeight = targetWidth / _aspect;
 
-        double maxHeight = Math.Max(120d, availableHeight - 24d);
+        // 悬浮窗固定用「竖屏」的宽高比，横竖屏一致：128 x 276（不足时等比缩小）。
+        bool landscape = _aspect > 1d;
+        double targetWidth = landscape ? ThumbTargetHeight : ThumbTargetWidth;
+        double targetHeight = landscape ? ThumbTargetWidth : ThumbTargetHeight;
+        double maxHeight = Math.Max(120d, availableHeight - 32d);
         if (targetHeight > maxHeight)
         {
+            double ratio = maxHeight / targetHeight;
             targetHeight = maxHeight;
-            targetWidth = targetHeight * _aspect;
+            targetWidth = Math.Max(96d, targetWidth * ratio);
         }
 
-        // 缩略屏占左下角：给页面留出底部空间，免得内容被压在它下面。
-        // 窗口很矮时缩略屏几乎占满高度，这时就不留了，否则页面区域会被压成一条缝。
-        PageHost.Margin = targetHeight < availableHeight * 0.55d
-            ? new Thickness(12, 2, 12, targetHeight + 22d)
-            : new Thickness(12, 2, 12, 10);
+        // 页面始终铺满：悬浮窗不占位，只浮在上面。
+        PageHost.Margin = new Thickness(12, 2, 12, 10);
 
-        ScreenFrame.HorizontalAlignment = HorizontalAlignment.Left;
+        ScreenFrame.HorizontalAlignment = HorizontalAlignment.Right;
         ScreenFrame.VerticalAlignment = VerticalAlignment.Bottom;
-        ScreenFrame.Margin = new Thickness(14, 0, 0, 14);
+        ScreenFrame.Margin = new Thickness(0, 0, 16, 16);
+
+        // 缩略时按等比缩放显示（横屏就留上下黑边），不裁切、不变形。
+        ScreenImage.Stretch = Stretch.Uniform;
 
         var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
         var duration = TimeSpan.FromMilliseconds(ScreenAnimationMs);
@@ -1009,9 +1405,73 @@ public partial class MirrorWindow
             new DoubleAnimation(fromHeight, targetHeight, duration) { EasingFunction = ease });
     }
 
+    /// <summary>取页面里第一个 ScrollViewer 的内容元素（用来调整它的底边距）。</summary>
+    private static FrameworkElement? FindScrollContent(object page)
+    {
+        if (page is not DependencyObject root)
+        {
+            return null;
+        }
+
+        ScrollViewer? viewer = root as ScrollViewer ?? FindChild<ScrollViewer>(root);
+        return viewer?.Content as FrameworkElement;
+    }
+
+    /// <summary>在可视树里按类型找第一个子元素。</summary>
+    private static T? FindChild<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int index = 0; index < count; index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindChild<T>(child) is { } deeper)
+            {
+                return deeper;
+            }
+        }
+
+        return null;
+    }
+
+
     /// <summary>把缩小的虚拟屏动画还原，动画结束后重新交回 Stretch 布局。</summary>
+    /// <summary>页面开着时转屏：把悬浮窗的宽高按新方向重新对调（窄/宽基准保持同一套）。</summary>
+    private void RefreshThumbnailSize()
+    {
+        if (!_overlayOpen)
+        {
+            return;
+        }
+
+        bool landscape = _aspect > 1d;
+        double targetWidth = landscape ? ThumbTargetHeight : ThumbTargetWidth;
+        double targetHeight = landscape ? ThumbTargetWidth : ThumbTargetHeight;
+
+        double maxHeight = Math.Max(120d, ScreenHost.ActualHeight - 32d);
+        if (targetHeight > maxHeight)
+        {
+            double ratio = maxHeight / targetHeight;
+            targetHeight = maxHeight;
+            targetWidth = Math.Max(96d, targetWidth * ratio);
+        }
+
+        ScreenFrame.BeginAnimation(FrameworkElement.WidthProperty, null);
+        ScreenFrame.BeginAnimation(FrameworkElement.HeightProperty, null);
+        ScreenFrame.Width = targetWidth;
+        ScreenFrame.Height = targetHeight;
+        ScreenImage.Stretch = Stretch.Uniform;
+    }
+
+
     private void RestoreScreenFromThumbnail()
     {
+        ScreenImage.Stretch = Stretch.Fill;   // 还原成全屏拉伸（窗口锁了手机比例，不会变形）
         double fromWidth = ScreenFrame.ActualWidth;
         double fromHeight = ScreenFrame.ActualHeight;
         double targetWidth = _screenRestoreWidth > 0 ? _screenRestoreWidth : fromWidth;
@@ -1057,6 +1517,7 @@ public partial class MirrorWindow
         PageHost.Content = null;
         PageHost.Margin = new Thickness(12, 2, 12, 10);
         OverlayHost.Visibility = Visibility.Collapsed;
+        IdleHost.Visibility = _hasFrame ? Visibility.Collapsed : Visibility.Visible;
         StatusHost.Visibility = Visibility.Visible;
     }
 
@@ -1076,7 +1537,20 @@ public partial class MirrorWindow
             return;
         }
 
-        FitWindowToAspect(keepWidth: deltaWidth >= deltaHeight);
+        // 拖拽会连发几十个 SizeChanged；每次立刻改尺寸等于每次重建渲染目标，
+        // 攒到一定次数就撞 Win32 1816（配额不足），界面直接卡死。这里只记方向，去抖后再校一次。
+        _fitKeepWidth = deltaWidth >= deltaHeight;
+        _fitTimer.Stop();
+        _fitTimer.Start();
+    }
+
+    /// <summary>去抖到点：按最后的主方向做一次比例校正。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    private void OnFitTimerTick(object? sender, EventArgs e)
+    {
+        _fitTimer.Stop();
+        FitWindowToAspect(_fitKeepWidth);
     }
 
     /// <summary>
@@ -1138,42 +1612,96 @@ public partial class MirrorWindow
         }
 
         bool landscape = _aspect > 1d;
-        double centerX = Left + (ActualWidth / 2d);
-        double centerY = Top + ((ActualHeight > 1d ? ActualHeight : Height) / 2d);
 
-        AppSettings settings = AppSettings.Current;
-        double targetWidth;
-        double targetHeight;
-        if (landscape && settings.HasMirrorLandscape)
+        if (_overlayOpen)
         {
-            targetWidth = settings.MirrorLandscapeWidth;
-            targetHeight = settings.MirrorLandscapeHeight;
-        }
-        else if (!landscape && settings.HasMirrorPortrait)
-        {
-            targetWidth = settings.MirrorPortraitWidth;
-            targetHeight = settings.MirrorPortraitHeight;
-        }
-        else
-        {
-            // 没有该朝向的记忆：宽度照抄切换前，按新比例算高。
-            targetWidth = Math.Max(200d, ActualWidth > 1d ? ActualWidth : Width);
-            targetHeight = Math.Max(160d, (targetWidth / _aspect) + BarHeight);
+            // 页面开着时转屏：悬浮窗立刻按新方向对调宽高，不用等下次打开页面。
+            _ = Dispatcher.BeginInvoke(new Action(RefreshThumbnailSize), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        _fitting = true;
-        try
+        if (landscape)
         {
-            Width = targetWidth;
-            Height = targetHeight;
-            Left = centerX - (targetWidth / 2d);
-            Top = centerY - (targetHeight / 2d);
-        }
-        finally
-        {
-            _fitting = false;
+            // 竖屏 -> 横屏：把竖屏的「位置 + 客户区宽高」整份记下来（恢复时要用）。
+            double oldClientW = Math.Max(120d, ActualWidth);
+            double oldClientH = Math.Max(120d, ActualHeight - BarHeight);
+            _portraitRestore = new Rect(Left, Top, oldClientW, oldClientH);
+
+            // 尺寸就是宽高对调：竖屏 512x1105 的客户区 -> 横屏 1105x512，比例正好是 2720:1260，
+            // 所以画面既不会黑边也不会被裁；窗口保持原中心点「转」过去。
+            double newWidth = oldClientH;
+            double newHeight = oldClientW + BarHeight;
+            double centerX = Left + (oldClientW / 2d);
+            double centerY = Top + ((oldClientH + BarHeight) / 2d);
+            double wantLeft = centerX - (newWidth / 2d);
+            double wantTop = centerY - (newHeight / 2d);
+
+            _fitting = true;
+            try
+            {
+                Width = newWidth;
+                Height = newHeight;
+                Left = wantLeft;
+                Top = wantTop;
+            }
+            finally
+            {
+                _fitting = false;
+            }
+
+            // 超出桌面：整块往屏幕内搬（不缩放）。搬动的距离记下来，恢复竖屏时补回去。
+            ClampWindowToWorkArea();
+            _landscapePlaced = new Point(Left, Top);
+            _landscapeOffset = new Point(Left - wantLeft, Top - wantTop);
+
+            _log.Info("orient", $"转横屏：竖屏 {oldClientW:0}x{oldClientH:0} -> 横屏 {newWidth:0}x{newHeight:0}，搬动 ({_landscapeOffset.X:0},{_landscapeOffset.Y:0})");
+            return;
         }
 
+        if (_portraitRestore is { Width: > 1d } saved)
+        {
+            bool userMoved = _landscapePlaced is { } placed
+                && (Math.Abs(Left - placed.X) > 2d || Math.Abs(Top - placed.Y) > 2d);
+
+            double left;
+            double top;
+            if (userMoved)
+            {
+                // 横屏时用户自己拖过窗口：按现在的中心点还原成竖屏尺寸。
+                left = Left + ((ActualWidth - saved.Width) / 2d);
+                top = Top + ((ActualHeight - saved.Height) / 2d);
+            }
+            else
+            {
+                // 没拖过：回到原来竖屏的位置，并把横屏时为「搬进屏幕」临时位移的距离补上。
+                left = saved.Left + _landscapeOffset.X;
+                top = saved.Top + _landscapeOffset.Y;
+            }
+
+            double targetHeight = saved.Height + BarHeight;
+            _fitting = true;
+            try
+            {
+                Width = saved.Width;
+                Height = targetHeight;
+                Left = left;
+                Top = top;
+            }
+            finally
+            {
+                _fitting = false;
+            }
+
+            _portraitRestore = null;
+            _landscapePlaced = null;
+            _landscapeOffset = default;
+
+            ClampWindowToWorkArea();
+            _log.Info("orient", $"回竖屏：{saved.Width:0}x{targetHeight:0} @ ({Left:0},{Top:0})，用户拖过={userMoved}");
+            return;
+        }
+
+        // 没有竖屏记忆（例如一开始就是横屏流）：保持当前宽度、按比例改高度。
+        FitWindowToAspect(keepWidth: true);
         ClampWindowToWorkArea();
     }
 
@@ -1534,7 +2062,21 @@ public partial class MirrorWindow
     /// </summary>
     private void ClampWindowToWorkArea()
     {
-        Rect work = SystemParameters.WorkArea;
+        long clampNow = System.Environment.TickCount64;
+        if (clampNow - _lastClampTicks < 120)
+        {
+            // 120ms 内重复夹取没有意义，只会白白重建渲染目标。
+            return;
+        }
+
+        _lastClampTicks = clampNow;
+
+        if (_clamping)
+        {
+            return;
+        }
+
+        Rect work = WindowPlacement.WorkArea(this);
 
         double maxScreenWidth = Math.Max(120d, Math.Min(
             work.Width - 16d,
@@ -1550,31 +2092,61 @@ public partial class MirrorWindow
 
         double targetWidth = screenWidth * scale;
         double targetHeight = (screenHeight * scale) + BarHeight;
+        double targetLeft = Left;
+        double targetTop = Top;
 
+        if (targetLeft + targetWidth > work.Right)
+        {
+            targetLeft = Math.Max(work.Left, work.Right - targetWidth);
+        }
+
+        if (targetTop + targetHeight > work.Bottom)
+        {
+            targetTop = Math.Max(work.Top, work.Bottom - targetHeight);
+        }
+
+        if (targetLeft < work.Left)
+        {
+            targetLeft = work.Left;
+        }
+
+        if (targetTop < work.Top)
+        {
+            targetTop = work.Top;
+        }
+
+        // 只在真的需要变的时候才写属性：无条件赋值会让 WPF 每次都重建渲染目标，
+        // 连续几十次就会撞上 Win32 1816「配额不足」（见 App.IsTransientRenderFailure）。
+        if (Math.Abs(Left - targetLeft) <= 0.5
+            && Math.Abs(Top - targetTop) <= 0.5
+            && Math.Abs(Width - targetWidth) <= 0.5
+            && Math.Abs(Height - targetHeight) <= 0.5)
+        {
+            return;
+        }
+
+        _clamping = true;
         _fitting = true;
         try
         {
-            Width = targetWidth;
-            Height = targetHeight;
-
-            if (Left + Width > work.Right)
+            if (Math.Abs(Width - targetWidth) > 0.5)
             {
-                Left = Math.Max(work.Left, work.Right - Width);
+                Width = targetWidth;
             }
 
-            if (Top + Height > work.Bottom)
+            if (Math.Abs(Height - targetHeight) > 0.5)
             {
-                Top = Math.Max(work.Top, work.Bottom - Height);
+                Height = targetHeight;
             }
 
-            if (Left < work.Left)
+            if (Math.Abs(Left - targetLeft) > 0.5)
             {
-                Left = work.Left;
+                Left = targetLeft;
             }
 
-            if (Top < work.Top)
+            if (Math.Abs(Top - targetTop) > 0.5)
             {
-                Top = work.Top;
+                Top = targetTop;
             }
 
             _lastWidth = ActualWidth;
@@ -1583,8 +2155,10 @@ public partial class MirrorWindow
         finally
         {
             _fitting = false;
+            _clamping = false;
         }
     }
+
     // ── 输入：触摸 / 滚轮 / 返回 ────────────────────────────────────
 
     /// <summary>建立到设备 uitest daemon 的输入通道；失败只记日志，画面继续可用。</summary>
@@ -1594,10 +2168,24 @@ public partial class MirrorWindow
         try
         {
             _inputRunner ??= new HdcRunner(deviceSerial: _device.Serial, log: _log);
-            _input = await UitestInputChannel.ConnectAsync(_inputRunner, _log).ConfigureAwait(true);
+
+            // 设备侧 hypium RPC 服务（8012）不常驻：投屏 daemon 只服务画面 socket。
+            // 没有它连 touchDown 都发不出去，所以每次连上先确认，不在就拉起。
+            bool rpcReady = await UitestRpcDaemon.EnsureAsync(_inputRunner, _log, CancellationToken.None).ConfigureAwait(true);
+            if (rpcReady)
+            {
+                _streamUnusable = false;
+            }
 
             // 提前探一次桌面状态：第一次滚轮就能按「桌面横滑 / 应用竖滑」走对分支。
             ProbeLauncherAsync();
+
+            // 连上就先把常驻控制通道建起来，不等用户操作才建；断了自己重连。
+            _ = EnsureInputAsync();
+            _inputKeepAlive ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _inputKeepAlive.Tick -= OnInputKeepAliveTick;
+            _inputKeepAlive.Tick += OnInputKeepAliveTick;
+            _inputKeepAlive.Start();
         }
         catch (HdcException ex)
         {
@@ -1605,16 +2193,44 @@ public partial class MirrorWindow
         }
     }
 
-    private async Task DisposeInputAsync()
+    /// <summary>常驻通道保活：断了就在后台重连一次，两秒一轮，不打扰用户。</summary>
+    private void OnInputKeepAliveTick(object? sender, EventArgs e)
     {
-        UitestInputChannel? input = _input;
-        _input = null;
-        if (input is not null)
+        if (_input is { IsConnected: true })
         {
-            await input.DisposeAsync().ConfigureAwait(false);
+            return;
+        }
+
+        _ = EnsureInputAsync();
+    }
+    /// <summary>
+    /// 保证输入通道可用：已连通直接返回；断链（设备侧 hypium 服务重启、线被掐）就重建。
+    /// 设备一启动推流守护进程会顶掉已建立的 8012 连接，所以这里不能只信 TcpClient.Connected。
+    /// </summary>
+    /// <returns>通道可用返回 <c>true</c>。</returns>
+    private async Task<bool> EnsureInputAsync()
+    {
+        if (_input is { IsConnected: true })
+        {
+            return true;
+        }
+
+        _inputRunner ??= new HdcRunner(deviceSerial: _device.Serial, log: _log);
+        try
+        {
+            _input = await UitestInputChannel.ConnectAsync(_inputRunner, _log).ConfigureAwait(true);
+            _log.Info("input", "常驻控制通道已就绪（连接期间一直保持）");
+            _streamUnusable = false;   // 新通道可用：清掉上一次被掐断留下的旧结论
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("input", $"常驻控制通道建立失败，暂时用命令方式：{ex.Message}");
+            return false;
         }
     }
-
+    /// <summary>看门狗：通道已停用，这里只把自己停掉。</summary>
+    /// <param name="sender">事件源。</param>
     /// <summary>
     /// 画面在虚拟屏里的实际排布：UniformToFill 意味着缩放比取「铺满」的那个较大值，
     /// 多出来的部分被居中裁掉。返回缩放比与画面左上角相对虚拟屏的偏移。
@@ -1664,7 +2280,16 @@ public partial class MirrorWindow
             return false;
         }
 
-        double deviceX = (point.X - offsetX) / scale;
+        // 横屏黑边被横向拉伸后，显示坐标要先按中心反算回原始画面坐标，否则点击会左右偏。
+        double surfaceWidth = FrameSurface.ActualWidth;
+        double px = point.X;
+        if (_cropScale > 1.0001d && surfaceWidth > 0d)
+        {
+            double centerX = surfaceWidth / 2d;
+            px = centerX + ((px - centerX) / _cropScale);
+        }
+
+        double deviceX = (px - offsetX) / scale;
         double deviceY = (point.Y - offsetY) / scale;
         x = (int)Math.Round(Math.Clamp(deviceX, 0d, Math.Max(0d, _screenWidth - 1d)));
         y = (int)Math.Round(Math.Clamp(deviceY, 0d, Math.Max(0d, _screenHeight - 1d)));
@@ -1673,6 +2298,7 @@ public partial class MirrorWindow
 
     private void OnScreenLeftDown(object sender, MouseButtonEventArgs e)
     {
+        InvalidateLauncherCache();
         // 覆盖层打开时，画面是左下角那块缩略屏：点它就是「还原」。
         if (_overlayOpen)
         {
@@ -1690,25 +2316,25 @@ public partial class MirrorWindow
             return;
         }
 
-        if (_input is not { IsConnected: true })
-        {
-            return;
-        }
-
         Point surface = e.GetPosition(FrameSurface);
         if (!TryMapToDevice(surface, out int deviceX, out int deviceY))
         {
             return;
         }
-
         _pressed = true;
         _downSent = false;
+        _moved = false;
         _pressSurface = surface;
         _pressDevice = new System.Drawing.Point(deviceX, deviceY);
+        _lastSent = _pressDevice;
         _pressTicks = Environment.TickCount64;
-        _lastMoveTicks = 0;
 
-        // 按下先什么都不发：纯点击最后只发一条 uitest click，避免 down/up 之间隔太久被判成长按。
+
+        // 常驻通道可用就直接把按下送下去：之后的每一次移动都实时下发，画面跟着鼠标走。
+        _streaming = false;
+        // 注意：这里不立刻发 TouchDown。按下就发会被设备当成「手指落点后停顿」，
+        // 先闪一下点击/长按反馈，等真正拖动时才开始滑——就是你看到的现象。
+        // 改为等第一次真实位移再补 TouchDown，纯拖动从第一步就是拖拽。
         RestartLongPressTimer();
 
         ScreenHost.CaptureMouse();
@@ -1725,43 +2351,64 @@ public partial class MirrorWindow
 
         if (e.LeftButton != MouseButtonState.Pressed)
         {
-            // 抬起事件丢了（比如在窗口外松手）：按取消处理，并补一次 up。
+            // 抬起事件丢了（比如在窗口外松手）：按取消处理。
             CancelGesture();
-            return;
-        }
-
-        if (_input is not { IsConnected: true })
-        {
             return;
         }
 
         Point surface = e.GetPosition(FrameSurface);
 
-        if (!_downSent)
+        // 只记录轨迹终点，不逐帧下发：设备侧的 hypium 手势通道收到 touchDown 就断链，
+        // 所以统一改成 uitest 的 click / longClick / swipe 一条命令完成。
+        double dx = surface.X - _pressSurface.X;
+        double dy = surface.Y - _pressSurface.Y;
+        if (Math.Sqrt((dx * dx) + (dy * dy)) >= ClickMaxDistance)
         {
-            double dx = surface.X - _pressSurface.X;
-            double dy = surface.Y - _pressSurface.Y;
-            if (Math.Sqrt((dx * dx) + (dy * dy)) < ClickMaxDistance)
+            TryMapToDevice(surface, out int deviceX, out int deviceY);
+            _lastDevice = new System.Drawing.Point(deviceX, deviceY);
+            _moved = true;
+
+            // 已经动了就不可能是长按：立刻取消计时器，否则慢速拖动会先弹出长按菜单。
+            StopLongPressTimer();
+
+            // 第一次真实位移：现在才真正按下手指，从按下点开始拖，
+            // 这样设备拿到的是「按下→连续移动」，不会先当成点击。
+            if (!_streaming && _input is { IsConnected: true } starter)
             {
-                // 还在点击容差内，先不注入任何事件。
-                return;
+                starter.TouchDown(_pressDevice.X, _pressDevice.Y);
+                _streaming = starter.IsConnected;
             }
 
-            StopLongPressTimer();
-            _input.TouchDown(_pressDevice.X, _pressDevice.Y);
-            _downSent = true;
-        }
+            if (_streaming)
+            {
+                if (_input is not { IsConnected: true })
+                {
+                    // 通道刚被设备掐断：本会话不再试流式，剩下的路程改用分段下发，保证拖动过程中画面在动。
+                    _streaming = false;
+                    _streamUnusable = true;
+                    _log.Warn("input", "连续触摸被设备中断，改用分段下发");
+                }
+                else
+                {
+                    // 鼠标事件率可到 125~1000 次/秒，而设备侧手势回放只有约 60 次/秒。
+                    // 不在这里限流，快速拖动会在通道里堆出几百帧，抬手后手机还在慢慢滑。
+                    long nowTicks = Environment.TickCount64;
+                    if (nowTicks - _lastMoveTicks >= MoveThrottleMs)
+                    {
+                        _lastMoveTicks = nowTicks;
+                        _input.TouchMove(deviceX, deviceY);
+                        _lastSent = _lastDevice;
+                    }
 
-        long now = Environment.TickCount64;
-        if (now - _lastMoveTicks < MoveThrottleMs)
-        {
-            return;
-        }
+                    // 太密的那一帧不发，位置已记在 _lastDevice，抬手前会补发最后一帧。
+                    return;
+                }
+            }
 
-        _lastMoveTicks = now;
-        if (TryMapToDevice(surface, out int deviceX, out int deviceY))
-        {
-            _input.TouchMove(deviceX, deviceY);
+            // 不再分段下发：分段会让每一步都变成一次独立的「按下-抬起」，
+            // 应用里看到的就是先点一下再滑、而且每段都要等 hdc 起进程（约 0.5 秒）。
+            // 流式可用时靠上面的 TouchMove 跟手；万一通道断了，抬手时补一条整段 drag。
+
         }
     }
 
@@ -1774,32 +2421,70 @@ public partial class MirrorWindow
 
         e.Handled = true;
 
-        bool downSent = _downSent;
         System.Drawing.Point pressDevice = _pressDevice;
+        bool moved = _moved;
+        bool longPressed = _downSent;
+
         StopLongPressTimer();
 
-        // 先清状态再放捕获：LostMouseCapture 回调里就不会再补一次 up。
         _pressed = false;
         _downSent = false;
+        _moved = false;
         ScreenHost.ReleaseMouseCapture();
 
-        if (_input is not { IsConnected: true })
+        if (longPressed)
         {
+            // 长按已经由 OnLongPressTick 发过 longClick，抬手什么都不用做。
             return;
         }
 
-        if (downSent)
+        if (_streaming)
         {
-            _input.TouchUp();
+            _streaming = false;
+            if (_input is { IsConnected: true })
+            {
+                _input.DropPending();
+
+                // 抬手前把最后一帧补上，设备停在鼠标最终位置。
+                if (moved && (_lastDevice.X != _lastSent.X || _lastDevice.Y != _lastSent.Y))
+                {
+                    _input.TouchMove(_lastDevice.X, _lastDevice.Y);
+                }
+                _input.TouchUp();
+                return;
+            }
+
+            // 通道在半路被设备掐断：补一条命令把这一笔画完，不让画面停在半路。
+            if (moved)
+            {
+                SendSwipe(pressDevice.X, pressDevice.Y, _lastDevice.X, _lastDevice.Y, DragVelocity);
+            }
+            else
+            {
+                SendClick(pressDevice.X, pressDevice.Y);
+            }
+
             return;
         }
 
-        // 纯点击：一条 uitest click 命令，设备侧就是一个干净的点击。
+        if (moved)
+        {
+            // 流式没走成：抬手时补一条整段拖拽，速度按这次拖动的真实速度换算。
+            long heldMs = Math.Max(40, Environment.TickCount64 - _pressTicks);
+            double dist = Math.Sqrt(Math.Pow(_lastDevice.X - pressDevice.X, 2) + Math.Pow(_lastDevice.Y - pressDevice.Y, 2));
+            int velocity = (int)Math.Clamp(dist / (heldMs / 1000d), 800d, 12000d);
+            SendDrag(pressDevice.X, pressDevice.Y, _lastDevice.X, _lastDevice.Y, velocity);
+            return;
+        }
+
         SendClick(pressDevice.X, pressDevice.Y);
     }
 
     /// <summary>鼠标离开画面：当作手势结束，已发的 down 必须补一次 up，之后不再发 move。</summary>
-    private void OnScreenMouseLeave(object sender, MouseEventArgs e) => CancelGesture();
+    private void OnScreenMouseLeave(object sender, MouseEventArgs e)
+    {
+        CancelGesture();
+    }
 
     /// <summary>鼠标捕获丢失（Alt+Tab、弹窗抢焦点等）：同样收尾，避免设备侧卡在按下状态。</summary>
     private void OnScreenLostMouseCapture(object sender, MouseEventArgs e) => CancelGesture();
@@ -1815,12 +2500,16 @@ public partial class MirrorWindow
         _pressed = false;
         StopLongPressTimer();
 
-        if (_downSent && _input is { IsConnected: true })
-        {
-            _input.TouchUp();
-        }
-
         _downSent = false;
+
+        if (_streaming)
+        {
+            _streaming = false;
+            if (_input is { IsConnected: true })
+            {
+                _input.TouchUp();
+            }
+        }
     }
 
     private void RestartLongPressTimer()
@@ -1834,23 +2523,131 @@ public partial class MirrorWindow
 
     private void StopLongPressTimer() => _longPressTimer?.Stop();
 
-    /// <summary>按住不动超过 400ms：这时才补发 touchDown，设备侧就能识别成长按。</summary>
+    /// <summary>按住不动超过 400ms：发一条设备侧 longClick，抬手不再重复点击。</summary>
     private void OnLongPressTick(object? sender, EventArgs e)
     {
         StopLongPressTimer();
-        if (!_pressed || _downSent || _input is not { IsConnected: true })
+        if (!_pressed || _downSent || _moved)
         {
             return;
         }
 
-        _input.TouchDown(_pressDevice.X, _pressDevice.Y);
+        if (!_streamUnusable && _input is { IsConnected: true } holder)
+        {
+            // 通道可用：就地按下，设备自己会判长按（手指确实停在同一位置）。
+            holder.TouchDown(_pressDevice.X, _pressDevice.Y);
+            _streaming = holder.IsConnected;
+            _downSent = true;
+            return;
+        }
+
+        // 通道不可用：退回 shell 的长按命令。
         _downSent = true;
+        RunShell($"uitest uiInput longClick {_pressDevice.X} {_pressDevice.Y}");
+    }
+    private void InvalidateLauncherCache()
+    {
+        _launcher = null;
+        _launcherStamp = 0;
     }
 
-    /// <summary>纯点击：直接发一条 <c>uitest uiInput click</c>，不走 down/move/up 三件套。</summary>
+    /// <summary>纯点击：发一条 <c>uitest uiInput click</c>。</summary>
     /// <param name="x">设备像素 X。</param>
     /// <param name="y">设备像素 Y。</param>
     private void SendClick(int x, int y)
+    {
+        InvalidateLauncherCache();
+        RunShell($"uitest uiInput click {x} {y}");
+    }
+
+    /// <summary>从按下点滑到松手点：一条 <c>uitest uiInput swipe</c>，最后一位是速度（px/s）。</summary>
+    /// <summary>精确拖拽（不带抬手惯性）：应用内滚动与拖动收尾用它。</summary>
+    private void SendDrag(int fromX, int fromY, int toX, int toY, int velocity)
+    {
+        int v = Math.Clamp(velocity, 200, 40_000);
+        RunShell($"uitest uiInput drag {fromX} {fromY} {toX} {toY} {v}");
+    }
+
+    private void SendSwipe(int fromX, int fromY, int toX, int toY, int velocity)
+    {
+        InvalidateLauncherCache();
+
+        // uitest 的最后一个参数是速度（200~40000 px/s），不是时长：
+        // 速度越大画面跟得越快，之前按「按住时长」传，等于每次都按最慢档跑。
+        velocity = Math.Clamp(velocity, 200, 40_000);
+        RunShell($"uitest uiInput swipe {fromX} {fromY} {toX} {toY} {velocity}");
+    }
+
+    /// <summary>
+    /// 拖动过程中分段下发：一次只发「上次发过之后新走的那一段」，
+    /// 速度给高，这样手机画面基本跟着鼠标走，而不是松手才整段滑过去。
+    /// </summary>
+    private void MaybeSendDragChunk()
+    {
+        if (_streaming || !_moved || _dragInFlight)
+        {
+            return;
+        }
+
+        System.Drawing.Point from = _lastSent;
+        System.Drawing.Point to = _lastDevice;
+        int dx = to.X - from.X;
+        int dy = to.Y - from.Y;
+        if (Math.Abs(dx) + Math.Abs(dy) < DragChunkPixels)
+        {
+            return;
+        }
+
+        // 同一时刻只允许一条设备侧命令在跑：uitest 一次约 600ms，
+        // 并发下发只会把 hdc 排队排满，反而更不跟手。
+        _dragInFlight = true;
+        _lastSent = to;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                HdcRunner? runner = _inputRunner;
+                if (runner is not null)
+                {
+                    await runner.ShellAsync(
+                        $"uitest uiInput swipe {from.X} {from.Y} {to.X} {to.Y} {DragVelocity}",
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("input", $"拖动分段失败：{ex.Message}");
+            }
+            finally
+            {
+                _dragInFlight = false;
+                _ = Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    // 上一条发完时鼠标可能又走了一段：立刻补上，保持贴合。
+                    if (_pressed && _moved)
+                    {
+                        MaybeSendDragChunk();
+                    }
+                }), DispatcherPriority.Background);
+            }
+        });
+    }
+    /// <summary>抬手时补最后余量：不足最小分段的也算上，避免结尾少走一截。</summary>
+    private void SendDragTail()
+    {
+        System.Drawing.Point from = _lastSent;
+        System.Drawing.Point to = _lastDevice;
+        if (from.X == to.X && from.Y == to.Y)
+        {
+            return;
+        }
+
+        _lastSent = to;
+        SendSwipe(from.X, from.Y, to.X, to.Y, DragVelocity);
+    }
+
+    /// <summary>把一条设备侧命令丢到后台跑，失败写日志，不阻塞界面线程。</summary>
+    private void RunShell(string command)
     {
         var runner = _inputRunner;
         if (runner is null)
@@ -1862,33 +2659,26 @@ public partial class MirrorWindow
         {
             try
             {
-                var result = await runner.ShellAsync($"uitest uiInput click {x} {y}", CancellationToken.None)
-                    .ConfigureAwait(false);
+                var result = await runner.ShellAsync(command, CancellationToken.None).ConfigureAwait(false);
                 if (!result.Succeeded)
                 {
-                    _log.Warn("input", $"点击注入失败：{result.StandardError.Trim()}");
+                    _log.Warn("input", $"注入失败（{command}）：{result.StandardError.Trim()}");
                 }
             }
             catch (Exception ex)
             {
-                _log.Error("input", $"点击注入异常（{x},{y}）。", ex);
+                _log.Error("input", $"注入异常（{command}）。", ex);
             }
         });
     }
 
     /// <summary>
-    /// 滚轮：按 <c>e.Delta</c> 的真实滚动量换算成设备像素（每格 ≈ 屏幕高度 1/12，保留累计余量），
-    /// 方向按「滚轮向下 ⇒ 内容上移」；桌面（Launcher）上改成左右切页。
+    /// 滚轮：累加位移后发一条 <c>uitest uiInput swipe</c>（设备侧真实滑动，按速度执行）。
+    /// 起点取鼠标在画面上的位置 —— 鼠标停在哪就从哪滑，不再固定从屏幕边缘开始。
     /// </summary>
     private void OnScreenWheel(object sender, MouseWheelEventArgs e)
     {
-        if (_overlayOpen)
-        {
-            // 覆盖层里的页面自己滚，不往手机注入。
-            return;
-        }
-
-        if (_input is not { IsConnected: true } || _pressed)
+        if (_overlayOpen || _inputRunner is null)
         {
             return;
         }
@@ -1898,112 +2688,205 @@ public partial class MirrorWindow
             return;
         }
 
-        // 每格 120：Delta/120 是格数，除以屏幕高度 1/12 得到设备像素位移；小数部分留着下次累加。
-        double perNotch = Math.Max(24d, _screenHeight / 12d);
-        _wheelRemainder += (e.Delta / 120d) * perNotch;
-
-        int distance = (int)Math.Truncate(_wheelRemainder);
-        if (distance == 0)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        _wheelRemainder -= distance;
-
-        // 拿不到可靠的前台包名时退化成「横向滑动一次」，而不是报错或什么都不做。
-        bool horizontal = IsLauncherActive() ?? true;
-        if (horizontal)
-        {
-            SwipeHorizontally(distance, centerX, centerY);
-        }
-        else
-        {
-            SwipeVertically(distance, centerX, centerY);
-        }
-
         e.Handled = true;
+
+        // 驱动常把一格滚轮拆成多条 MouseWheel（实测一格 4 条、间隔 16ms 内），
+        // 45ms 内只认第一条，避免一格滚轮被当成好几次。
+        long now = Environment.TickCount64;
+        if (now - _lastWheelTicks < 25)
+        {
+            return;
+        }
+
+        _lastWheelTicks = now;
+
+        // 滚轮刻度换算成设备像素：一格约 1/18 屏高；连滚多格就累加成一段。
+        double perNotch = Math.Max(20d, _screenHeight / 18d);
+        _wheelPixels += (e.Delta / 120d) * perNotch;
+        _wheelAnchor = new System.Drawing.Point(centerX, centerY);
+
+        if (_wheelBurstStart == 0)
+        {
+            _wheelBurstStart = now;
+        }
+
+        _wheelBurstEnd = now;
+
+        // 滚轮一停就结算：80ms 没有新的滚轮事件就把这一段一次性发出去（既合并连滚，又不拖响应）。
+        _wheelFlush ??= CreateWheelFlushTimer();
+        _wheelFlush.Stop();
+        _wheelFlush.Start();
     }
 
-    /// <summary>上下滑动：distance 为负表示内容上移（手指从下往上）。</summary>
-    private void SwipeVertically(int distance, int centerX, int centerY)
+    private DispatcherTimer CreateWheelFlushTimer()
     {
-        UitestInputChannel? input = _input;
-        if (input is null || _screenHeight <= 0)
+        DispatcherTimer timer = new(DispatcherPriority.Input)
         {
-            return;
-        }
+            Interval = TimeSpan.FromMilliseconds(70),
+        };
 
-        int minY = Math.Min(SwipeMargin, Math.Max(0, _screenHeight - 1));
-        int maxY = Math.Max(minY + 1, _screenHeight - SwipeMargin);
-
-        int startY = Math.Clamp(centerY, minY, maxY);
-        int endY = Math.Clamp(startY + distance, minY, maxY);
-        if (endY == startY)
-        {
-            return;
-        }
-
-        int x = Math.Clamp(centerX, 0, Math.Max(0, _screenWidth - 1));
-        input.TouchDown(x, startY);
-        for (int i = 1; i <= SwipeSteps; i++)
-        {
-            input.TouchMove(x, startY + (((endY - startY) * i) / SwipeSteps));
-        }
-
-        input.TouchUp();
+        timer.Tick += OnWheelFlushTick;
+        return timer;
     }
 
-    /// <summary>左右滑动（桌面切页）：distance 为负表示往下一页翻。</summary>
-    private void SwipeHorizontally(int distance, int centerX, int centerY)
+    private void OnWheelFlushTick(object? sender, EventArgs e)
     {
-        UitestInputChannel? input = _input;
-        if (input is null || _screenWidth <= 0)
+        _wheelFlush?.Stop();
+
+        double pixels = _wheelPixels;
+        long start = _wheelBurstStart;
+        long end = _wheelBurstEnd;
+        _wheelPixels = 0d;
+        _wheelBurstStart = 0;
+        _wheelBurstEnd = 0;
+
+        if (Math.Abs(pixels) < 1)
         {
             return;
         }
 
-        int minX = Math.Min(SwipeMargin, Math.Max(0, _screenWidth - 1));
-        int maxX = Math.Max(minX + 1, _screenWidth - SwipeMargin);
-
-        int startX = Math.Clamp(centerX, minX, maxX);
-        int endX = Math.Clamp(startX + distance, minX, maxX);
-        if (endX == startX)
-        {
-            return;
-        }
-
-        int y = Math.Clamp(centerY, 0, Math.Max(0, _screenHeight - 1));
-        input.TouchDown(startX, y);
-        for (int i = 1; i <= SwipeSteps; i++)
-        {
-            input.TouchMove(startX + (((endX - startX) * i) / SwipeSteps), y);
-        }
-
-        input.TouchUp();
+        long elapsed = Math.Max(40, end - start);
+        _ = ScrollBurstAsync(pixels, elapsed);
     }
-
-    // ── 桌面（Launcher）判定 ──────────────────────────────────────
 
     /// <summary>
-    /// 读前台包名判断是不是桌面：命中缓存直接返回，过期在后台补探一次（滚轮不被命令卡住）。
+    /// 一次滚轮爆发只发一条设备命令：距离由累计刻度决定，速度由「这段时间滚了多少」决定。
+    /// 不排队、不回填余量——滚轮一停就停，绝不出现第二段。
     /// </summary>
-    /// <returns>true = 桌面；false = 普通应用；null = 还没拿到可靠信号。</returns>
+    private async Task ScrollBurstAsync(double pixels, long elapsedMs)
+    {
+        HdcRunner? runner = _inputRunner;
+        int width = _screenWidth;
+        int height = _screenHeight;
+        if (runner is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        int dir = Math.Sign(pixels);
+        int remaining = (int)Math.Round(Math.Abs(pixels));
+        if (dir == 0 || remaining < 1)
+        {
+            return;
+        }
+
+        try
+        {
+            // 桌面 → 滚轮翻页；应用内 → 滚轮纵向滚动。自动判断，不需要按任何修饰键。
+            if (IsLauncherActive() == true)
+            {
+                long flipNow = Environment.TickCount64;
+                if (flipNow - _lastPageFlipTicks < 400)
+                {
+                    return;
+                }
+
+                _lastPageFlipTicks = flipNow;
+                int flipDir = dir < 0 ? 0 : 1;
+
+                if (!_streamUnusable && _input is { IsConnected: true } flipChannel)
+                {
+                    int cy = height / 2;
+                    int fromX = flipDir == 0 ? width - 60 : 60;
+                    int toX = flipDir == 0 ? 60 : width - 60;
+                    flipChannel.TouchDown(fromX, cy);
+                    const int flipFrames = 8;
+                    for (int i = 1; i <= flipFrames; i++)
+                    {
+                        flipChannel.TouchMove(fromX + (int)Math.Round((toX - fromX) * (i / (double)flipFrames)), cy);
+                        await Task.Delay(5).ConfigureAwait(true);
+                    }
+
+                    flipChannel.TouchUp();
+                    _log.Info("wheel", $"桌面翻页：{fromX} → {toX}");
+                    return;
+                }
+
+                await runner.ShellAsync($"uitest uiInput dircFling {flipDir} 1500").ConfigureAwait(true);
+                _log.Info("wheel", $"桌面翻页：dircFling {flipDir}");
+                return;
+            }
+
+            int minY = SwipeMargin;
+            int maxY = Math.Max(SwipeMargin + 1, height - SwipeMargin);
+            int minX = SwipeMargin + 1;
+            int maxX = Math.Max(minX + 1, width - SwipeMargin);
+            // 固定从屏幕正中滑动：跟着鼠标位置走会导致「滚轮时鼠标一动就滑错地方」。
+            int x = width / 2;
+            int y = height / 2;
+            int targetY = Math.Clamp(y + (dir * remaining), minY, maxY);
+            if (targetY == y)
+            {
+                return;
+            }
+
+            // 滚轮优先走常驻通道：TouchDown → 若干帧 TouchMove → 停一帧 → TouchUp。
+            // 走 shell 要 hdc + uitest 起两次进程（>500ms），那就是「滚一下要等半天」的来源。
+            int delta = targetY - y;
+            // 帧数由「你这次滚了多久」决定：滚得慢 → 时长长 → 帧多、每帧位移小（慢速跟上）；
+            // 滚得快 → 时长短 → 帧少、每帧位移大（快速甩到位）。总位移始终等于你滚出来的像素。
+            int durationMs = (int)Math.Clamp(elapsedMs, 80d, 600d);
+            int frames = Math.Max(3, durationMs / 12);
+            const int stepMs = 12;   // 24 像素 / 12ms ≈ 2000 px/s：跟手又不被判成甩动
+
+            _log.Info("wheel", $"滚动（流式）：{x},{y} → {targetY}（{Math.Abs(delta)} 像素，{frames} 帧，速度约 {Math.Abs(delta) * 1000 / (frames * stepMs)} px/s）");
+
+            if (!_streamUnusable && _input is { IsConnected: true } wheelChannel)
+            {
+                wheelChannel.TouchDown(x, y);
+                for (int i = 1; i <= frames; i++)
+                {
+                    if (!wheelChannel.IsConnected)
+                    {
+                        break;
+                    }
+
+                    wheelChannel.TouchMove(x, y + (delta * i / frames));
+                    await Task.Delay(stepMs).ConfigureAwait(true);
+                }
+                // 尾部减速：最后三帧把间隔拉到 45ms 且停在终点，抬手速度≈0，
+                // 应用就不会把这次滚动判成「甩动」，松手后不会自己再滑一段。
+                for (int k = 0; k < 3; k++)
+                {
+                    wheelChannel.TouchMove(x, y + delta);
+                    await Task.Delay(45).ConfigureAwait(true);
+                }
+
+                await Task.Delay(120).ConfigureAwait(true);
+                wheelChannel.TouchUp();
+                return;
+            }
+
+            // 通道不可用才退回 shell drag。
+            double speed = Math.Abs(delta) / (elapsedMs / 1000d);
+            int velocity = (int)Math.Clamp(speed, 600d, 6000d);
+            await runner.ShellAsync($"uitest uiInput drag {x} {y} {x} {targetY} {velocity}").ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("input", $"滚动注入失败：{ex.Message}");
+        }
+    }
     private bool? IsLauncherActive()
     {
         long now = Environment.TickCount64;
+
+        // 缓存超过 600ms 就不再信任：宁可先按「应用内」走纵向滚动，
+        // 也不能拿桌面的旧状态去横滑（微信里横滑就是灾难）。
+        // 轮询每 700ms 一次，缓存有效期必须比它长，否则永远判“未知”→ 桌面上也只会纵向滚。
         if (now - _launcherStamp > 2000)
         {
             ProbeLauncherAsync();
+            return null;
         }
 
         return _launcher;
     }
 
-    /// <summary>后台探测前台包名（<c>aa dump -l</c> 的第一条 bundle name 即当前前台任务）。</summary>
+    /// <summary>后台探测前台进程（<c>aa dump -r</c> 里 state 含 #FOREGROUND 的记录）。</summary>
     private void ProbeLauncherAsync()
     {
-        if (_launcherProbeRunning || _launcherFailures >= 3)
+        if (_launcherProbeRunning)
         {
             return;
         }
@@ -2021,16 +2904,16 @@ public partial class MirrorWindow
         {
             try
             {
-                var result = await runner.ShellAsync("aa dump -l", CancellationToken.None).ConfigureAwait(false);
-                string? bundle = FirstBundleName(result.CombinedOutput);
-                if (bundle is null)
+                var result = await runner.ShellAsync("aa dump -r", CancellationToken.None).ConfigureAwait(false);
+                bool? detected = DetectLauncher(result.CombinedOutput);
+                if (detected is null)
                 {
-                    NoteLauncherProbeFailed("输出里没有包名");
+                    NoteLauncherProbeFailed("输出里没有前台状态");
                     return;
                 }
 
                 _launcherFailures = 0;
-                _launcher = bundle.Contains("launcher", StringComparison.OrdinalIgnoreCase);
+                _launcher = detected.Value;
             }
             catch (HdcException ex)
             {
@@ -2049,62 +2932,112 @@ public partial class MirrorWindow
         _launcherFailures++;
         _launcherStamp = Environment.TickCount64;
 
-        if (_launcherFailures >= 3)
-        {
-            // 拿不到前台包名：按「不是桌面」处理，保证普通应用里的滚轮还是上下滑动。
-            _launcher = false;
-        }
-
         _log.Warn("input", $"前台包名探测失败（第 {_launcherFailures} 次）：{reason}");
     }
 
-    /// <summary>从 <c>aa dump -l</c> 输出里取第一条包名。</summary>
+    /// <summary>
+    /// 从 <c>aa dump -r</c> 的 AppRunningRecords 里挑出 state #FOREGROUND 的进程；
+    /// 只剩系统壳（桌面 / 系统界面 / 服务子进程）时判定为「在桌面」。
+    /// </summary>
     /// <param name="output">命令输出。</param>
-    /// <returns>包名；解析不出来时返回 null。</returns>
-    private static string? FirstBundleName(string output)
+    /// <returns>true = 桌面；false = 有真实应用在前台；null = 读不出前台状态。</returns>
+    private static bool? DetectLauncher(string output)
     {
         if (string.IsNullOrEmpty(output))
         {
             return null;
         }
 
-        foreach (string key in BundleKeys)
+        string? current = null;
+        bool sawForeground = false;
+        bool sawRealApp = false;
+
+        foreach (string rawLine in output.Split('\n'))
         {
-            int index = output.IndexOf(key, StringComparison.OrdinalIgnoreCase);
-            if (index < 0)
+            string line = rawLine.Trim();
+            if (line.Length == 0)
             {
                 continue;
             }
 
-            int bracket = output.IndexOf('[', index);
-            int bracketEnd = bracket >= 0 ? output.IndexOf(']', bracket + 1) : -1;
-            if (bracket >= 0 && bracketEnd > bracket)
+            if (line.StartsWith("process name [", StringComparison.Ordinal))
             {
-                string value = output.Substring(bracket + 1, bracketEnd - bracket - 1).Trim();
-                if (value.Length > 0)
-                {
-                    return value;
-                }
+                int end = line.IndexOf(']', 14);
+                current = end > 14 ? line.Substring(14, end - 14).Trim() : null;
+                continue;
             }
 
-            int colon = output.IndexOf(':', index);
-            if (colon < 0)
+            if (current is null || !line.StartsWith("state #FOREGROUND", StringComparison.Ordinal))
             {
                 continue;
             }
 
-            int lineEnd = output.IndexOf('\n', colon);
-            string raw = lineEnd > colon
-                ? output.Substring(colon + 1, lineEnd - colon - 1)
-                : output.Substring(colon + 1);
-            raw = raw.Trim();
-            if (raw.Length > 0)
+            sawForeground = true;
+            if (!IsShellProcess(current))
             {
-                return raw;
+                sawRealApp = true;
             }
         }
 
-        return null;
+        return sawForeground ? !sawRealApp : null;
+    }
+
+    /// <summary>系统壳进程：桌面、系统界面、常驻服务子能力，都不算「用户正在用的应用」。</summary>
+    /// <param name="name">进程名。</param>
+    /// <returns>是系统壳返回 true。</returns>
+    private static bool IsShellProcess(string name) =>
+        name.Contains("sceneboard", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("launcher", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("SystemUI", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("ailifesvc", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("hiview", StringComparison.OrdinalIgnoreCase);
+
+    // ── 界面卡死看门狗 ────────────────────────────────────────────
+
+    /// <summary>
+    /// 界面线程心跳 + 看门狗：每 500ms 打一次心跳，后台线程发现超过 5 秒没动就记一条 Warn。
+    /// 只读诊断，不改变任何行为；卡死时日志里能直接看到从什么时刻开始卡。
+    /// </summary>
+    private void StartUiWatchdog()
+    {
+        if (_uiWatchdog is not null)
+        {
+            return;
+        }
+
+        _uiBeat = System.Environment.TickCount64;
+        _uiHeartbeat = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = System.TimeSpan.FromMilliseconds(500),
+        };
+        _uiHeartbeat.Tick += (_, _) => Interlocked.Exchange(ref _uiBeat, System.Environment.TickCount64);
+        _uiHeartbeat.Start();
+
+        _uiWatchdog = Task.Run(async () =>
+        {
+            while (!_closed)
+            {
+                await Task.Delay(1000).ConfigureAwait(false);
+                long gap = System.Environment.TickCount64 - Interlocked.Read(ref _uiBeat);
+                if (gap <= 5000)
+                {
+                    continue;
+                }
+
+                _log.Warn("ui", $"界面线程已连续 {gap} ms 无响应（画面尺寸 {_screenWidth}×{_screenHeight}，窗口 {ActualWidth:0}×{ActualHeight:0}）");
+                Interlocked.Exchange(ref _uiBeat, System.Environment.TickCount64);
+            }
+        });
+    }
+
+    /// <summary>停掉看门狗与心跳。</summary>
+    private void StopUiWatchdog()
+    {
+        _closed = true;
+        _uiHeartbeat?.Stop();
+        _uiHeartbeat = null;
+        ScreenImage.Source = null;
+        _screenBitmap = null;
     }
 
     /// <summary>右键 = 返回键。</summary>
@@ -2317,33 +3250,127 @@ public partial class MirrorWindow
     /// 关窗时记住当前朝向的位置与大小（竖屏、横屏各存一份），
     /// 并让主窗口挪到同一位置出现 —— <b>只挪位置，绝不改主窗口的大小</b>。
     /// </summary>
+    /// <summary>
+    /// 检测画面左右是否带黑边（手机横屏看剧时影片比屏幕窄），若有则等比放大画面把黑边挤出可视区，
+    /// 窗口尺寸不动 —— 用户要求「横屏看剧时旁边的两条黑边自动去掉，同时保持窗口大小」。
+    /// </summary>
+    private void UpdateContentCrop(IntPtr data, int stride, int width, int height)
+    {
+        long now = System.Environment.TickCount64;
+        if (now - _cropStamp < 500 || width < 120 || height < 120)
+        {
+            return;
+        }
+
+        _cropStamp = now;
+
+        const int LumaThreshold = 26;
+        int stepY = Math.Max(1, height / 24);
+
+        bool ColumnHasContent(int x)
+        {
+            for (int y = stepY; y < height; y += stepY)
+            {
+                int offset = (y * stride) + (x * 4);
+                byte b = System.Runtime.InteropServices.Marshal.ReadByte(data, offset);
+                byte g = System.Runtime.InteropServices.Marshal.ReadByte(data, offset + 1);
+                byte r = System.Runtime.InteropServices.Marshal.ReadByte(data, offset + 2);
+                if (r > LumaThreshold || g > LumaThreshold || b > LumaThreshold)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        int limit = Math.Max(8, width / 3);
+        int left = 0;
+        while (left < limit && !ColumnHasContent(left))
+        {
+            left++;
+        }
+
+        int right = 0;
+        while (right < limit && !ColumnHasContent(width - 1 - right))
+        {
+            right++;
+        }
+
+        int bars = Math.Max(left, right);
+        if (bars >= limit)
+        {
+            // 整幅都很暗（黑屏 / 熄屏），别当成黑边。
+            bars = 0;
+        }
+
+        // 要求连续两次测量结果接近，避免个别暗帧导致反复缩放。
+        if (Math.Abs(bars - _cropBars) > Math.Max(6, width / 60))
+        {
+            _cropBars = bars;
+            return;
+        }
+
+        _cropBars = bars;
+        double scale = bars < 4 ? 1d : Math.Min(1.8d, width / (double)Math.Max(1, width - (2 * bars)));
+        if (Math.Abs(scale - _cropScale) < 0.01d)
+        {
+            return;
+        }
+
+        _cropScale = scale;
+        ScreenImage.RenderTransformOrigin = new Point(0.5d, 0.5d);
+        ScreenImage.RenderTransform = scale <= 1.001d ? Transform.Identity : new ScaleTransform(scale, 1d);
+        _log.Info("crop", $"左右黑边 {bars}px，横向拉伸 {scale:0.###}（只去左右，不动上下）");
+    }
+
     private void RememberGeometry()
     {
         AppSettings settings = AppSettings.Current;
         bool landscape = _aspect > 1d;
-        if (WindowState == WindowState.Normal && ActualWidth > 200 && ActualHeight > 200)
+
+        // 竖屏该落在哪：横屏下关窗时，用户看到的是「手机横过来了」，
+        // 主窗必须回到竖屏那个位置与尺寸，而不是横屏那块又宽又矮的矩形。
+        double portraitLeft = Left;
+        double portraitTop = Top;
+        double portraitWidth = ActualWidth;
+        double portraitHeight = ActualHeight;
+
+        if (landscape && _portraitRestore is { Width: > 1d } portrait)
         {
-            if (landscape)
+            portraitWidth = portrait.Width;
+            portraitHeight = portrait.Height + BarHeight;
+
+            bool userMoved = _landscapePlaced is { } placed
+                && (Math.Abs(Left - placed.X) > 2d || Math.Abs(Top - placed.Y) > 2d);
+            if (userMoved)
             {
-                settings.MirrorLandscapeLeft = Left;
-                settings.MirrorLandscapeTop = Top;
-                settings.MirrorLandscapeWidth = ActualWidth;
-                settings.MirrorLandscapeHeight = ActualHeight;
+                // 横屏里用户自己拖过：按当前中心点还原成竖屏尺寸。
+                portraitLeft = Left + ((ActualWidth - portraitWidth) / 2d);
+                portraitTop = Top + ((ActualHeight - portraitHeight) / 2d);
             }
             else
             {
-                settings.MirrorPortraitLeft = Left;
-                settings.MirrorPortraitTop = Top;
-                settings.MirrorPortraitWidth = ActualWidth;
-                settings.MirrorPortraitHeight = ActualHeight;
+                // 没拖过：回到原竖屏位置，并补上横屏时被迫搬动的距离。
+                portraitLeft = portrait.Left + _landscapeOffset.X;
+                portraitTop = portrait.Top + _landscapeOffset.Y;
             }
+        }
+
+        if (WindowState == WindowState.Normal && portraitWidth > 200 && portraitHeight > 200)
+        {
+            // 只存竖屏档位：横屏尺寸是竖屏对调出来的，不需要单独记忆。
+            settings.MirrorPortraitLeft = portraitLeft;
+            settings.MirrorPortraitTop = portraitTop;
+            settings.MirrorPortraitWidth = portraitWidth;
+            settings.MirrorPortraitHeight = portraitHeight;
         }
 
         if (Owner is Window owner && owner.WindowState == WindowState.Normal)
         {
             Rect work = WindowPlacement.WorkArea(owner);
-            double left = Math.Clamp(Left, work.Left, Math.Max(work.Left, work.Right - owner.Width));
-            double top = Math.Clamp(Top, work.Top, Math.Max(work.Top, work.Bottom - owner.Height));
+            double left = Math.Clamp(portraitLeft, work.Left, Math.Max(work.Left, work.Right - owner.Width));
+            double top = Math.Clamp(portraitTop, work.Top, Math.Max(work.Top, work.Bottom - owner.Height));
             owner.WindowStartupLocation = WindowStartupLocation.Manual;
             owner.Left = left;
             owner.Top = top;
@@ -2351,4 +3378,25 @@ public partial class MirrorWindow
 
         settings.Save();
     }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>
+    /// 用 DWM 给本窗口上 Win11 圆角（DWMWCP_ROUND = 2）。
+    /// WindowStyle=None 的自绘窗口不会自动获得系统圆角，所以必须显式设置，
+    /// 否则主窗口是圆角、这个窗口是直角，看起来像两套界面。
+    /// </summary>
+    private void ApplyRoundedCorners()
+    {
+        IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        int round = 2;
+        _ = DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
+    }
+
 }

@@ -91,7 +91,7 @@
                     <ui:Button
                         x:Name="OpenDataFolderButton"
                         Margin="0,14,0,0"
-                        Height="32"
+                        MinHeight="32"
                         Click="OnOpenDataFolderClick"
                         Content="{x:Static res:Strings.Settings_OpenDataFolder}" />
                     <TextBlock

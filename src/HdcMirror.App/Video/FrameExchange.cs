@@ -17,6 +17,9 @@ internal sealed class FrameExchange
     private int _width;
     private int _height;
     private int _stride;
+    /// <summary>最近一次发布时刻（Stopwatch 时间戳），用于测量「解码完成 -> 界面渲染」延迟。</summary>
+    public long LastPublishTicks { get; private set; }
+
     private long _published;
     private long _consumed;
 
@@ -29,6 +32,7 @@ internal sealed class FrameExchange
     /// <summary>解码线程调用：把一帧写进槽位，覆盖上一帧。</summary>
     public void Publish(ReadOnlySpan<byte> pixels, int width, int height, int stride)
     {
+        LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         var size = stride * height;
         if (size <= 0 || pixels.Length < size)
         {

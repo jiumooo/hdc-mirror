@@ -16,6 +16,9 @@ public static class Strings
     /// <summary>应用正式名称。</summary>
     public static string App_Title => Get(nameof(App_Title));
 
+
+
+
     /// <summary>导航项 / 设备页标题。</summary>
     public static string Nav_Devices => Get(nameof(Nav_Devices));
 
@@ -117,6 +120,12 @@ public static class Strings
     /// <summary>界面文案 <c>Menu_Settings_Av</c>。</summary>
     public static string Menu_Settings_Av => Get(nameof(Menu_Settings_Av));
 
+    /// <summary>界面文案 <c>Menu_Settings_Video</c>：设置里的画面页。</summary>
+    public static string Menu_Settings_Video => Get(nameof(Menu_Settings_Video));
+
+    /// <summary>界面文案 <c>Menu_Settings_Audio</c>：设置里的音频页。</summary>
+    public static string Menu_Settings_Audio => Get(nameof(Menu_Settings_Audio));
+
     /// <summary>界面文案 <c>Menu_Help_Support</c>。</summary>
     public static string Menu_Help_Support => Get(nameof(Menu_Help_Support));
 
@@ -191,6 +200,12 @@ public static class Strings
 
     /// <summary>界面文案 <c>Supporter_Note</c>。</summary>
     public static string Supporter_Note => Get(nameof(Supporter_Note));
+
+    /// <summary>界面文案 <c>Supporter_Alipay</c>。</summary>
+    public static string Supporter_Alipay => Get(nameof(Supporter_Alipay));
+
+    /// <summary>界面文案 <c>Supporter_WeChat</c>。</summary>
+    public static string Supporter_WeChat => Get(nameof(Supporter_WeChat));
 
     /// <summary>界面文案 <c>Upd_Checking</c>。</summary>
     public static string Upd_Checking => Get(nameof(Upd_Checking));
@@ -317,6 +332,9 @@ public static class Strings
     /// <summary>界面文案 <c>Ui_Forget</c>：下拉项右侧的忘记按钮。</summary>
     public static string Ui_Forget => Get(nameof(Ui_Forget));
 
+    /// <summary>界面文案 <c>Ui_DeviceBoxTip</c>：设备下拉框的悬停提示。</summary>
+    public static string Ui_DeviceBoxTip => Get(nameof(Ui_DeviceBoxTip));
+
     /// <summary>界面文案 <c>Ui_Audio</c>：手机窗口控制条上的音频开关按钮</summary>
     public static string Ui_Audio => Get(nameof(Ui_Audio));
     /// <summary>界面文案 <c>Status_Audio_Waiting</c>：音频开关打开后等待手机端切换输出</summary>
@@ -332,6 +350,9 @@ public static class Strings
 
     /// <summary>界面文案 <c>Status_ScanDeepFormat</c>：常规扫描没结果、改为对线索主机做端口细扫时的提示</summary>
     public static string Status_ScanDeepFormat => Get(nameof(Status_ScanDeepFormat));
+
+    /// <summary>界面文案 <c>Status_ScanDeepProgressFormat</c>：细扫进度。</summary>
+    public static string Status_ScanDeepProgressFormat => Get(nameof(Status_ScanDeepProgressFormat));
     /// <summary>界面文案 <c>Settings_Quality</c>：设置页画质分组的标题</summary>
     public static string Settings_Quality => Get(nameof(Settings_Quality));
     /// <summary>界面文案 <c>Settings_FrameRate</c>：设置项：抓取帧率上限</summary>
@@ -726,4 +747,12 @@ public static class Strings
     /// <summary>界面文案 <c>Settings_EffectiveSummaryFormat</c>：{0}：帧率 {1} · 码率 {2} Mbps</summary>
     public static string Settings_EffectiveSummaryFormat => Get(nameof(Settings_EffectiveSummaryFormat));
 
+    public static string About_RepoSection => Get(nameof(About_RepoSection));
+    public static string About_RepoUrl => Get(nameof(About_RepoUrl));
+    public static string About_RepoUrlHint => Get(nameof(About_RepoUrlHint));
+    public static string About_RepoHint => Get(nameof(About_RepoHint));
+    public static string About_FeedbackSection => Get(nameof(About_FeedbackSection));
+    public static string About_FeedbackHint => Get(nameof(About_FeedbackHint));
+    public static string About_LicenseSection => Get(nameof(About_LicenseSection));
+    public static string About_LicenseBody => Get(nameof(About_LicenseBody));
 }

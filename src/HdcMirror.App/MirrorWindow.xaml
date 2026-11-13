@@ -52,7 +52,7 @@
                                 <Setter TargetName="Bd" Property="Background" Value="#22FFFFFF" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#FFD2D2D2" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -99,6 +99,45 @@
             </Setter>
         </Style>
 
+        <!-- 画面底部中央的系统功能键：大圆钮、悬停发光、按下加深。
+             尺寸 52×52 是为了在屏幕上"看得见、点得准"，与顶部 26px 的小图标区分。 -->
+        <Style x:Key="NavBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="Height" Value="52" />
+            <Setter Property="Margin" Value="14,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="Foreground" Value="#F2FFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="26">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2BFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#45FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#4DFFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 置顶图钉：选中（IsChecked）时保持高亮 -->
         <Style x:Key="BarPinButtonStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="26" />
@@ -109,7 +148,7 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#CCFFFFFF" />
+            <Setter Property="Foreground" Value="#F2FFFFFF" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -124,7 +163,7 @@
                                 <Setter Property="Foreground" Value="#FFFFFFFF" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#CC0A84FF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#CC5EA9FF" />
                                 <Setter Property="Foreground" Value="#FFFFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -165,8 +204,8 @@
             <Setter Property="Margin" Value="0,0,6,0" />
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#CCFFFFFF" />
-            <Setter Property="Background" Value="#1FFFFFFF" />
+            <Setter Property="Foreground" Value="#B32B2B2B" />
+            <Setter Property="Background" Value="#FFFFFFFF" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -177,14 +216,20 @@
                             Padding="{TemplateBinding Padding}"
                             Background="{TemplateBinding Background}"
                             CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#FF1A1A1A"
+                                Text="{TemplateBinding Content}" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#FFD2D2D2" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#44FFFFFF" />
+                                <Setter TargetName="Bd" Property="Background" Value="#FFC2C2C2" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -207,9 +252,11 @@
             DockPanel.Dock="Top">
             <Grid x:Name="BarContent">
                 <Grid.ColumnDefinitions>
-                    <!-- 设备名占 * 列：窗口变窄时先缩名字（末尾省略），功能键与三个窗口按钮永不挤压 -->
-                    <ColumnDefinition Width="*" MinWidth="0" />
+                    <!-- 设备名按内容收，名字后面紧跟置顶图钉（横竖屏一致）；名字最长 240px，超出末尾省略。
+                         图钉之后再放一个 * 弹簧，把功能键推到右边；三个窗口按钮永远在最后一列。 -->
+                    <ColumnDefinition Width="Auto" MaxWidth="240" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="0" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -239,42 +286,19 @@
                      用户要求：设备管理 / 设置合并成一个「设置」，点开就是四页签覆盖层。 -->
                 <Button
                     x:Name="SettingsButton"
-                    Grid.Column="2"
+                    Grid.Column="3"
                     Click="OnSettingsPageClick"
                     Content="&#xE713;"
                     Style="{StaticResource BarButtonStyle}"
                     ToolTip="{x:Static res:Strings.Ui_PageSettings}" />
 
-                <StackPanel
-                    Grid.Column="3"
-                    Orientation="Horizontal"
-                    VerticalAlignment="Center">
-                    <!-- 系统功能键：走 uitest keyEvent（uinput 对 Home/Back/Power 是假成功）。
-                         顺序按用户要求：返回 → 主桌面 → 多任务。 -->
-                    <Button
-                        x:Name="BackButton"
-                        Click="OnKeyBackClick"
-                        Content="&#xE72B;"
-                        Style="{StaticResource BarButtonStyle}"
-                        ToolTip="{x:Static res:Strings.Ui_KeyBack}" />
-                    <Button
-                        x:Name="HomeButton"
-                        Click="OnKeyHomeClick"
-                        Content="&#xE80F;"
-                        Style="{StaticResource BarButtonStyle}"
-                        ToolTip="{x:Static res:Strings.Ui_KeyHome}" />
-                    <Button
-                        x:Name="RecentButton"
-                        Click="OnKeyRecentClick"
-                        Content="&#xE81C;"
-                        Style="{StaticResource BarSquareButtonStyle}"
-                        ToolTip="{x:Static res:Strings.Ui_KeyRecent}" />
-                </StackPanel>
+                <!-- 系统功能键（返回 / 主桌面 / 多任务）已移到画面底部中央，见 NavBar：
+                     不再占用控制条，避免窄窗口时把窗口按钮挤掉。 -->
 
                 <!-- 音频：把手机声音接到电脑（蓝牙 A2DP Sink，独立子进程负责） -->
                 <Button
                     x:Name="AudioButton"
-                    Grid.Column="4"
+                    Grid.Column="5"
                     Click="OnAudioToggleClick"
                     Content="&#xE767;"
                     Style="{StaticResource BarButtonStyle}"
@@ -282,7 +306,7 @@
 
                 <!-- 窗口按钮：最小化 / 最大化 / 关闭。用户明确要求这三个永远不隐藏，单独成列不被挤压 -->
                 <StackPanel
-                    Grid.Column="5"
+                    Grid.Column="6"
                     Orientation="Horizontal"
                     VerticalAlignment="Center">
                     <Button
@@ -312,7 +336,7 @@
             ClipToBounds="True">
 
             <!-- 页面覆盖层：在缩小的虚拟屏“下面”一层，供设备管理 / 设置等内容使用 -->
-            <Grid x:Name="OverlayHost" Background="#FF121212" Visibility="Collapsed">
+            <Grid x:Name="OverlayHost" Background="#FFF7F7F7" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -330,7 +354,7 @@
                         VerticalAlignment="Center"
                         FontSize="14"
                         FontWeight="SemiBold"
-                        Foreground="#F2FFFFFF"
+                        Foreground="#E4000000"
                         TextTrimming="CharacterEllipsis" />
                     <Button
                         Grid.Column="1"
@@ -364,12 +388,18 @@
                         Click="OnOverlayTabClick"
                         Content="{x:Static res:Strings.Menu_Settings_Keys}"
                         Style="{StaticResource OverlayTabStyle}" />
-                    <Button
-                        x:Name="OverlayTabAv"
-                        Tag="av"
-                        Click="OnOverlayTabClick"
-                        Content="{x:Static res:Strings.Menu_Settings_Av}"
-                        Style="{StaticResource OverlayTabStyle}" />
+                        <Button
+                            x:Name="OverlayTabVideo"
+                            Tag="video"
+                            Click="OnOverlayTabClick"
+                            Content="{x:Static res:Strings.Menu_Settings_Video}"
+                            Style="{StaticResource OverlayTabStyle}" />
+                        <Button
+                            x:Name="OverlayTabAudio"
+                            Tag="audio"
+                            Click="OnOverlayTabClick"
+                            Content="{x:Static res:Strings.Menu_Settings_Audio}"
+                            Style="{StaticResource OverlayTabStyle}" />
                 </StackPanel>
 
                 <ContentControl
@@ -388,17 +418,19 @@
                 VerticalAlignment="Stretch"
                 Background="#FF0B0B0B"
                 ClipToBounds="True"
-                CornerRadius="10">
+        BorderBrush="#33FFFFFF"
+        BorderThickness="1"
+        CornerRadius="14">
                 <Grid x:Name="FrameSurface" ClipToBounds="True">
                     <Image
                         x:Name="ScreenImage"
                         SnapsToDevicePixels="True"
-                        Stretch="UniformToFill" />
+                        Stretch="Fill" />
 
                     <!-- 未开始镜像时的锁屏画面 + 毛玻璃信息层 -->
                     <Grid x:Name="IdleHost">
                         <Border Background="#FF101218" />
-                        <Image x:Name="IdleBackdrop" SnapsToDevicePixels="True" Stretch="UniformToFill">
+                        <Image x:Name="IdleBackdrop" SnapsToDevicePixels="True" Stretch="Fill">
                             <Image.Effect>
                                 <BlurEffect
                                     KernelType="Gaussian"
@@ -481,6 +513,59 @@
                         Foreground="#E6FFFFFF" />
                 </StackPanel>
             </Border>
-        </Grid>
+        <!-- 画面底部中央的系统功能键：默认隐藏，鼠标靠近窗口底部才滑出（见 OnWindowMouseMove） -->
+        <!-- 画面底部中央的系统功能键：透明底、鼠标靠近就滑出 -->
+        <Border
+            x:Name="NavBar"
+            Margin="0,0,0,0"
+            Padding="0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Background="Transparent"
+            IsHitTestVisible="False"
+            Opacity="0"
+            RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="NavBarShift" Y="14" />
+            </Border.RenderTransform>
+            <StackPanel Orientation="Horizontal">
+                <!-- 形状按用户选定：左尖三角（圆角收边）/ 圆 / 圆角方；实心，走 uitest keyEvent -->
+                <Button
+                    x:Name="BackButton"
+                    Click="OnKeyBackClick"
+                    Style="{StaticResource NavBarButtonStyle}"
+                    ToolTip="{x:Static res:Strings.Ui_KeyBack}">
+                    <Path
+                        Data="M 1.5,9 L 15,1.5 L 15,16.5 Z"
+                        Fill="#F2FFFFFF"
+                        Stroke="#F2FFFFFF"
+                        StrokeLineJoin="Round"
+                        StrokeThickness="4.6" />
+                </Button>
+                <Button
+                    x:Name="HomeButton"
+                    Click="OnKeyHomeClick"
+                    Style="{StaticResource NavBarButtonStyle}"
+                    ToolTip="{x:Static res:Strings.Ui_KeyHome}">
+                    <Ellipse
+                        Width="16.5"
+                        Height="16.5"
+                        Fill="#F2FFFFFF" />
+                </Button>
+                <Button
+                    x:Name="RecentButton"
+                    Click="OnKeyRecentClick"
+                    Style="{StaticResource NavBarButtonStyle}"
+                    ToolTip="{x:Static res:Strings.Ui_KeyRecent}">
+                    <Rectangle
+                        Width="15"
+                        Height="15"
+                        Fill="#F2FFFFFF"
+                        RadiusX="3.4"
+                        RadiusY="3.4" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
     </DockPanel>
 </Window>

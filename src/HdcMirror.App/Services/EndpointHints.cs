@@ -10,7 +10,7 @@ namespace HdcMirror.App.Services;
 /// <param name="Endpoint"><c>ip:port</c> 形式。</param>
 /// <param name="Name">上一次连接用的地址名，可为空。</param>
 /// <param name="LastSeen">上次成功连接或发现的时间。</param>
-public sealed record EndpointHint(string Endpoint, string? Name, DateTimeOffset LastSeen);
+public sealed record EndpointHint(string Endpoint, string? Name, DateTimeOffset LastSeen, bool Verified = false);
 
 /// <summary>
 /// 端点线索库，落在 <c>%LOCALAPPDATA%\HdcMirror\endpoints.json</c>。
@@ -42,12 +42,15 @@ public sealed class EndpointHints
     }
 
     /// <summary>只取端点字符串，供发现器使用。</summary>
-    public IReadOnlyList<string> Endpoints() => List().Select(static h => h.Endpoint).ToList();
+        public IReadOnlyList<string> Endpoints(bool verifiedOnly = true) => List()
+            .Where(h => !verifiedOnly || h.Verified)
+            .Select(static h => h.Endpoint)
+            .ToList();
 
     /// <summary>记住一个端点（已存在则刷新时间与名称）。</summary>
     /// <param name="endpoint"><c>ip:port</c>。</param>
     /// <param name="name">设备名，可为空。</param>
-    public void Remember(string endpoint, string? name)
+    public void Remember(string endpoint, string? name, bool verified = false)
     {
         if (string.IsNullOrWhiteSpace(endpoint))
         {
@@ -59,7 +62,9 @@ public sealed class EndpointHints
         {
             var list = Load();
             int existing = list.FindIndex(h => string.Equals(h.Endpoint, trimmed, StringComparison.OrdinalIgnoreCase));
-            var hint = new EndpointHint(trimmed, name ?? (existing >= 0 ? list[existing].Name : null), DateTimeOffset.UtcNow);
+                // 一条线索只要验证过一次就算「真」：之后再怎么刷新都保持 Verified。
+                bool wasVerified = existing >= 0 && list[existing].Verified;
+                var hint = new EndpointHint(trimmed, name ?? (existing >= 0 ? list[existing].Name : null), DateTimeOffset.UtcNow, verified || wasVerified);
             if (existing >= 0)
             {
                 list[existing] = hint;

@@ -85,7 +85,7 @@ public partial class KeysPage : UserControl
 
         var gestureBox = new TextBox
         {
-            Height = 30,
+            MinHeight = 36,
             VerticalContentAlignment = VerticalAlignment.Center,
             FontSize = 13,
             Text = gesture,
@@ -97,7 +97,8 @@ public partial class KeysPage : UserControl
 
         var actionBox = new ComboBox
         {
-            Height = 30,
+            MinHeight = 36,
+            VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
             FontSize = 13,
             ItemsSource = ActionLabels(),
@@ -108,7 +109,8 @@ public partial class KeysPage : UserControl
 
         var remove = new Button
         {
-            Height = 30,
+            MinHeight = 36,
+            VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
             Padding = new Thickness(12, 0, 12, 0),
             FontSize = 13,

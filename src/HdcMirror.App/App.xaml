@@ -61,6 +61,8 @@
                 <Setter Property="Opacity" Value="0.72" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
-        </ResourceDictionary>
+            <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#FFFFFFFF" />
+    </ResourceDictionary>
     </Application.Resources>
 </Application>

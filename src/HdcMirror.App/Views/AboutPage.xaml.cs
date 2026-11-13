@@ -1,13 +1,19 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
+using System.Windows;
 using System.Windows.Controls;
 using HdcMirror.App.Resources;
 
 namespace HdcMirror.App.Views;
 
-/// <summary>关于页：显示程序集里携带的版本号（不写死在 XAML 里）。</summary>
+/// <summary>关于页：版本号取自程序集，仓库 / 反馈链接点击后交给默认浏览器。</summary>
 public partial class AboutPage : UserControl
 {
+    private const string RepositoryUrl = "https://github.com/jiumooo/hdc-mirror";
+    private const string IssuesUrl = RepositoryUrl + "/issues";
+
     public AboutPage()
     {
         InitializeComponent();
@@ -15,6 +21,22 @@ public partial class AboutPage : UserControl
             CultureInfo.CurrentCulture,
             Strings.Nav_About_VersionFormat,
             ReadAssemblyVersion());
+    }
+
+    private void OnRepoClick(object sender, RoutedEventArgs e) => Open(RepositoryUrl);
+
+    private void OnIssuesClick(object sender, RoutedEventArgs e) => Open(IssuesUrl);
+
+    private static void Open(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+            // 打不开浏览器不是致命错误（比如被组策略禁掉），界面保持原样即可。
+        }
     }
 
     /// <summary>

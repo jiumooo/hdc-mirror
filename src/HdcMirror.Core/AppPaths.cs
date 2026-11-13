@@ -1,15 +1,15 @@
-using System;
+﻿using System;
 using System.IO;
-using System.Threading;
 
 namespace HdcMirror.Core;
 
 /// <summary>
 /// 应用数据目录解析。
 /// <para>
-/// 数据目录与安装目录**刻意分开**：Velopack 把程序装在 <c>%LOCALAPPDATA%\HdcMirror</c> 下，
-/// 卸载/更新会整目录删除或替换；如果数据也放那里，用户的设备清单、设置、日志会被一起清掉。
-/// 因此数据固定在 <c>%APPDATA%\HdcMirror</c>（漫游目录，卸载不动）。
+/// 按用户要求，数据与程序放在一起：<c>&lt;安装根&gt;\data</c>。
+/// Velopack 的安装根下是 <c>Update.exe</c> + <c>current\</c> + <c>packages\</c>，
+/// 升级只替换 <c>current\</c>，因此把数据放在安装根的 <c>data\</c> 里既能「跟安装目录走」，
+/// 又不会被升级覆盖；卸载安装根时会连数据一起清掉（这也是用户要的效果）。
 /// </para>
 /// </summary>
 public static class AppPaths
@@ -17,8 +17,11 @@ public static class AppPaths
     /// <summary>数据目录名。</summary>
     public const string FolderName = "HdcMirror";
 
-    /// <summary>数据根目录（<c>%APPDATA%\HdcMirror</c>）。</summary>
-    public static string DataRoot { get; } = ResolveDataRoot();
+    /// <summary>安装根目录（<c>current\</c> 的上一级）。</summary>
+    public static string InstallRoot { get; } = ResolveInstallRoot();
+
+    /// <summary>数据根目录（<c>&lt;安装根&gt;\data</c>）。</summary>
+    public static string DataRoot { get; } = Path.Combine(InstallRoot, "data");
 
     /// <summary>日志目录。</summary>
     public static string Logs => Path.Combine(DataRoot, "logs");
@@ -32,11 +35,15 @@ public static class AppPaths
     /// <summary>端口线索清单。</summary>
     public static string EndpointsFile => Path.Combine(DataRoot, "endpoints.json");
 
-    /// <summary>
-    /// 旧版数据目录（<c>%LOCALAPPDATA%\HdcMirror</c>）。
-    /// 0.0.1 及更早版本把数据写在安装目录里，升级后需要搬一次。
-    /// </summary>
-    public static string LegacyRoot => Path.Combine(
+    /// <summary>0.1.x 及更早版本的数据目录（<c>%APPDATA%\HdcMirror</c>），升级后搬一次。</summary>
+    public static string LegacyRoamingRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) is { Length: > 0 } roaming
+            ? roaming
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "Roaming"),
+        FolderName);
+
+    /// <summary>0.0.1 及更早版本写在安装目录里的数据（<c>%LOCALAPPDATA%\HdcMirror</c>）。</summary>
+    public static string LegacyInstallRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         FolderName);
 
@@ -54,67 +61,76 @@ public static class AppPaths
     }
 
     /// <summary>
-    /// 把旧版数据搬到新位置。只在目标文件不存在时才搬，绝不覆盖用户现有数据；
-    /// 旧文件保持原样（不删），因为旧安装目录由 Velopack 管理，卸载时自然会清掉。
+    /// 把旧位置的数据搬到 <c>&lt;安装根&gt;\data</c>。只在目标文件不存在时才搬，绝不覆盖用户现有数据；
+    /// 旧文件保持原样（由安装/卸载流程自行清理）。
     /// </summary>
     public static void MigrateFromLegacy()
     {
         EnsureExists();
 
-        if (string.Equals(
-                Path.GetFullPath(DataRoot).TrimEnd(Path.DirectorySeparatorChar),
-                Path.GetFullPath(LegacyRoot).TrimEnd(Path.DirectorySeparatorChar),
-                StringComparison.OrdinalIgnoreCase))
+        foreach (string legacy in new[] { LegacyRoamingRoot, LegacyInstallRoot })
         {
-            return;
+            CopyMissing(legacy);
         }
+    }
 
-        foreach (string name in new[] { "settings.json", "devices.json", "endpoints.json" })
+    private static void CopyMissing(string legacyRoot)
+    {
+        try
         {
-            try
+            if (string.IsNullOrEmpty(legacyRoot)
+                || string.Equals(
+                    Path.GetFullPath(DataRoot).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(legacyRoot).TrimEnd(Path.DirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
             {
-                string source = Path.Combine(LegacyRoot, name);
+                return;
+            }
+
+            foreach (string name in new[] { "settings.json", "devices.json", "endpoints.json", "lockscreen.png" })
+            {
+                string source = Path.Combine(legacyRoot, name);
                 string target = Path.Combine(DataRoot, name);
                 if (File.Exists(source) && !File.Exists(target))
                 {
                     File.Copy(source, target, overwrite: false);
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
 
-        try
-        {
-            string sourceLogs = Path.Combine(LegacyRoot, "logs");
-            if (Directory.Exists(sourceLogs))
+            string sourceLogs = Path.Combine(legacyRoot, "logs");
+            if (!Directory.Exists(sourceLogs))
             {
-                Directory.CreateDirectory(Logs);
-                foreach (string source in Directory.EnumerateFiles(sourceLogs, "*.log"))
+                return;
+            }
+
+            Directory.CreateDirectory(Logs);
+            foreach (string source in Directory.EnumerateFiles(sourceLogs, "*.log"))
+            {
+                string target = Path.Combine(Logs, Path.GetFileName(source));
+                if (!File.Exists(target))
                 {
-                    string target = Path.Combine(Logs, Path.GetFileName(source));
-                    if (!File.Exists(target))
-                    {
-                        File.Copy(source, target, overwrite: false);
-                    }
+                    File.Copy(source, target, overwrite: false);
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
+            // 旧目录不可读就算了，不影响启动。
         }
     }
 
-    private static string ResolveDataRoot()
+    /// <summary>
+    /// 安装根 = 程序所在目录的上一级。开发机（bin\Debug\...）与正式安装（&lt;root&gt;\current\）都成立。
+    /// </summary>
+    private static string ResolveInstallRoot()
     {
-        string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (string.IsNullOrEmpty(roaming))
+        string baseDir = AppContext.BaseDirectory;
+        if (string.IsNullOrEmpty(baseDir))
         {
-            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            roaming = Path.Combine(profile, "AppData", "Roaming");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), FolderName);
         }
 
-        return Path.Combine(roaming, FolderName);
+        DirectoryInfo? parent = Directory.GetParent(baseDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return parent?.FullName ?? baseDir.TrimEnd(Path.DirectorySeparatorChar);
     }
 }

@@ -110,18 +110,28 @@ public partial class App : Application
         }
     }
 
-    /// <summary>日志目录：<c>%LOCALAPPDATA%\HdcMirror\logs</c>。</summary>
-    private static string LogDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "HdcMirror",
-        "logs");
+    /// <summary>
+    /// 日志目录：与主日志同一个位置（<c>%APPDATA%\HdcMirror\logs</c>）。
+    /// 早期版本写死在 <c>%LOCALAPPDATA%</c>，导致崩溃日志和运行日志分散在两个目录里。
+    /// </summary>
+    private static string LogDirectory => HdcMirror.Core.AppPaths.Logs;
 
     private void InstallCrashGuard()
     {
         DispatcherUnhandledException += (_, args) =>
         {
-            ReportCrash(args.Exception, "dispatcher");
             args.Handled = true;
+
+            // WPF 渲染目标偶发申请失败（Win32 1816 / 1450 / 8）时，窗口本身没坏：
+            // 抛出来的是 HwndTarget.UpdateWindowSettings，接着下一次布局就好。
+            // 这类异常只记一行日志，不弹框、不退出，否则用户会看到「程序遇到未处理的错误」而其实没崩。
+            if (IsTransientRenderFailure(args.Exception, out string note))
+            {
+                WriteTransientNote(note);
+                return;
+            }
+
+            ReportCrash(args.Exception, "dispatcher");
             Shutdown(1);
         };
 
@@ -154,6 +164,52 @@ public partial class App : Application
         }
 
         _ = logPath;
+    }
+
+    /// <summary>
+    /// 判断是不是「可自愈」的 WPF 渲染异常。
+    /// <para>
+    /// 典型症状：<c>System.ComponentModel.Win32Exception (1816): 配额不足，无法处理此命令。</c>
+    /// 堆栈落在 <c>HwndTarget.UpdateWindowSettings</c>。它由窗口尺寸/位置在极短时间里被反复改写引起，
+    /// 布局稳定后自然恢复，不该让整个进程退出。
+    /// </para>
+    /// </summary>
+    /// <param name="ex">要检查的异常。</param>
+    /// <param name="note">命中的错误码说明，用于日志。</param>
+    /// <returns>命中返回 true。</returns>
+    private static bool IsTransientRenderFailure(Exception? ex, out string note)
+    {
+        note = string.Empty;
+        for (Exception? cur = ex; cur is not null; cur = cur.InnerException)
+        {
+            if (cur is System.ComponentModel.Win32Exception w
+                && (w.NativeErrorCode == 1816 || w.NativeErrorCode == 1450 || w.NativeErrorCode == 8))
+            {
+                note = $"Win32 {w.NativeErrorCode}：{w.Message}";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>把可自愈异常追加到 <c>logs\transient-YYYYMMDD.log</c>，写失败就算了。</summary>
+    /// <param name="note">一行说明。</param>
+    private static void WriteTransientNote(string note)
+    {
+        try
+        {
+            Directory.CreateDirectory(LogDirectory);
+            string path = Path.Combine(LogDirectory, $"transient-{DateTime.Now:yyyyMMdd}.log");
+            File.AppendAllText(
+                path,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {note}{Environment.NewLine}",
+                Encoding.UTF8);
+        }
+        catch
+        {
+            // 日志写不进去不该再引发一次崩溃。
+        }
     }
 
     /// <summary>把异常与堆栈写入 <c>logs\crash-yyyyMMdd-HHmmss.log</c>，返回文件路径。</summary>

@@ -37,7 +37,10 @@
     <value>显示、输入、音频、连接与更新等设置项将在后续里程碑按分组填充。</value>
   </data>
   <data name="Nav_About_Description" xml:space="preserve">
-    <value>通过 hdc 无线调试，在电脑上实时镜像并操控 HarmonyOS 手机。</value>
+    <value>通过 hdc 无线调试，在电脑上实时镜像并操控 HarmonyOS NEXT 以上版本的手机。
+一个自用的 Windows 桌面客户端：手机端零安装，只依赖系统自带的 hdc 无线调试。
+画面走设备侧投屏服务，输入走 uitest uiInput，音频走蓝牙 A2DP，全部由电脑发起。
+</value>
   </data>
 
   <!-- 关于页 -->
@@ -189,10 +192,16 @@
     <value>支持者名单</value>
   </data>
   <data name="Supporter_Empty" xml:space="preserve">
-    <value>还没有人留下名字</value>
+    <value>正在等待作者开发. . .</value>
   </data>
   <data name="Supporter_Note" xml:space="preserve">
     <value>扫码请我喝杯咖啡，你的名字会出现在这里（可匿名）</value>
+  </data>
+  <data name="Supporter_Alipay" xml:space="preserve">
+    <value>支付宝</value>
+  </data>
+  <data name="Supporter_WeChat" xml:space="preserve">
+    <value>微信支付</value>
   </data>
   <data name="Upd_Checking" xml:space="preserve">
     <value>正在检查更新…</value>
@@ -245,6 +254,10 @@
   <data name="Status_ScanDeepFormat" xml:space="preserve">
     <value>端口可能变了 · 正在细扫 {0} 的端口，约需一分钟</value>
   </data>  <data name="Status_HdcUnavailable" xml:space="preserve">
+  <data name="Status_ScanDeepProgressFormat" xml:space="preserve">
+    <value>正在细扫 {0} · {1}%</value>
+    <comment>细扫进度：{0}=主机地址，{1}=百分比</comment>
+  </data>
     <value>hdc 不可用 · 请检查 hdc 是否随软件一起安装</value>
   </data>
   <data name="Status_Connecting" xml:space="preserve">
@@ -367,6 +380,10 @@
     <value>忘记</value>
     <comment>设备下拉项右侧的按钮：忘掉这台设备</comment>
   </data>  <data name="Ui_Audio" xml:space="preserve">
+  <data name="Ui_DeviceBoxTip" xml:space="preserve">
+    <value>点一下选择设备；扫不到时去「设置 → 设备管理」手填地址</value>
+    <comment>设备下拉框的悬停提示</comment>
+  </data>
     <value>音频</value>
     <comment>手机窗口控制条上的音频开关按钮</comment>
   </data>
@@ -423,7 +440,7 @@
     <comment>设置页音频分组标题</comment>
   </data>
   <data name="Settings_AutoAudio" xml:space="preserve">
-    <value>连接设备后自动开启音频</value>
+    <value>连接设备后音频使用电脑输出</value>
     <comment>是否自动开音频</comment>
   </data>
   <data name="Settings_EffectiveHint" xml:space="preserve">
@@ -910,5 +927,34 @@
   <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
     <value>{0}：帧率 {1} · 码率 {2} Mbps</value>
     <comment>音画设置：改动后的状态行，{0}=改动立即保存提示，{1}=帧率，{2}=码率</comment>
+  </data>  <data name="Menu_Settings_Video" xml:space="preserve">
+    <value>画面</value>
+  </data>
+  <data name="Menu_Settings_Audio" xml:space="preserve">
+    <value>音频</value>
+  </data>
+  <data name="About_RepoSection" xml:space="preserve">
+    <value>项目仓库</value>
+  </data>
+  <data name="About_RepoUrl" xml:space="preserve">
+    <value>https://github.com/jiumooo/hdc-mirror</value>
+  </data>
+  <data name="About_RepoUrlHint" xml:space="preserve">
+    <value>点击用默认浏览器打开仓库页面</value>
+  </data>
+  <data name="About_RepoHint" xml:space="preserve">
+    <value>源码、发布包与更新说明都在这里；点上面的地址即可打开。</value>
+  </data>
+  <data name="About_FeedbackSection" xml:space="preserve">
+    <value>问题反馈</value>
+  </data>
+  <data name="About_FeedbackHint" xml:space="preserve">
+    <value>遇到问题先搜一下有没有相同的 issue，没有再新开一个并写清步骤。</value>
+  </data>
+  <data name="About_LicenseSection" xml:space="preserve">
+    <value>许可与第三方组件</value>
+  </data>
+  <data name="About_LicenseBody" xml:space="preserve">
+    <value>本项目以 MIT 许可开源。视频解码使用 FFmpeg（LGPL 2.1 及以上，动态链接、可替换）；界面框架 WPF-UI、托盘组件 H.NotifyIcon、更新组件 Velopack 均为 MIT 许可。</value>
   </data>
 </root>

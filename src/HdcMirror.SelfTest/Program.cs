@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -151,7 +151,7 @@ internal static class Program
     {
         const string json = """
         {
-          "tag_name": "v0.2.0",
+          "tag_name": "v99.0.0",
           "assets": [
             { "name": "HdcMirror-win-Portable.zip", "browser_download_url": "https://example.invalid/portable.zip" },
             { "name": "HdcMirror-win-Setup.exe",   "browser_download_url": "https://example.invalid/setup.exe" }
@@ -161,7 +161,7 @@ internal static class Program
 
         UpdateCheckResult result = UpdateService.ParseRelease(json);
         Assert(result.Status == UpdateCheckStatus.Available, $"状态应为 Available，实际 {result.Status}");
-        Assert(result.Version == "0.2.0", $"版本应为 0.2.0，实际 {result.Version}");
+        Assert(result.Version == "99.0.0", $"版本应为 99.0.0，实际 {result.Version}");
         Assert(result.DownloadUrl is not null, "没挑出下载地址");
         Assert(result.DownloadUrl!.EndsWith("setup.exe", StringComparison.Ordinal), $"应优先挑 Setup.exe，实际 {result.DownloadUrl}");
     }

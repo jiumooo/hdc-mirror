@@ -285,6 +285,19 @@ if (Test-Path $PreinstallSrc) {
     Write-Warn "未找到 $PreinstallSrc，安装包不带前置检查脚本"
 }
 
+# 自选安装位置的引导器（ASCII 名，gh CLI 上传不会丢名字）
+foreach ($pair in @(
+    @{ Src = "preinstall-check\HdcMirror-install.cmd"; Dst = "HdcMirror-install.cmd" },
+    @{ Src = "preinstall-check\install.ps1";          Dst = "install.ps1" })) {
+    $src = Join-Path $PackRoot $pair.Src
+    if (Test-Path -LiteralPath $src) {
+        Copy-Item -LiteralPath $src -Destination (Join-Path $DistDir $pair.Dst) -Force
+        Write-Ok ("已附带 " + $pair.Dst)
+    } else {
+        Write-Warn ("未找到 " + $src)
+    }
+}
+
 # 防御：任何残留的 Portable 产物都清掉（例如 dist 里上一版的旧 zip）
 $stalePortable = @(Get-ChildItem $DistDir -File -Filter '*-Portable.zip' -ErrorAction SilentlyContinue)
 foreach ($p in $stalePortable) {

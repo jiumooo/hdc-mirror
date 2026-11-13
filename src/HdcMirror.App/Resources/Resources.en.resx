@@ -32,7 +32,10 @@
     <value>Display, input, audio, connection and update options will be filled in group by group in later milestones.</value>
   </data>
   <data name="Nav_About_Description" xml:space="preserve">
-    <value>Mirror and control a HarmonyOS phone on your PC in real time over hdc wireless debugging.</value>
+    <value>Mirror and control a HarmonyOS NEXT device on your PC in real time over hdc wireless debugging.
+A self-hosted Windows desktop client: nothing is installed on the phone, only the built-in hdc wireless debugging is used.
+Video comes from the on-device casting service, input goes through uitest uiInput, audio goes over Bluetooth A2DP — the PC drives all of it.
+</value>
   </data>
   <data name="Nav_About_FullName" xml:space="preserve">
     <value>HarmonyOS phone, wireless control · HdcMirror</value>
@@ -176,10 +179,16 @@
     <value>Supporters</value>
   </data>
   <data name="Supporter_Empty" xml:space="preserve">
-    <value>Nobody has signed yet</value>
+    <value>Under development — stay tuned. . .</value>
   </data>
   <data name="Supporter_Note" xml:space="preserve">
     <value>Scan the code to buy me a coffee — your name shows up here (anonymous is fine)</value>
+  </data>
+  <data name="Supporter_Alipay" xml:space="preserve">
+    <value>Alipay</value>
+  </data>
+  <data name="Supporter_WeChat" xml:space="preserve">
+    <value>WeChat Pay</value>
   </data>
   <data name="Upd_Checking" xml:space="preserve">
     <value>Checking for updates…</value>
@@ -231,6 +240,10 @@
   </data>
   <data name="Status_ScanDeepFormat" xml:space="preserve">
     <value>Port may have changed · Deep-scanning the ports of {0}, about a minute</value>
+  </data>
+  <data name="Status_ScanDeepProgressFormat" xml:space="preserve">
+    <value>Deep-scanning {0} · {1}%</value>
+    <comment>Deep scan progress: {0}=host, {1}=percent</comment>
   </data>
   <data name="Status_HdcUnavailable" xml:space="preserve">
     <value>hdc is unavailable · Check that hdc was installed together with this app</value>
@@ -330,6 +343,10 @@ This removes the saved entry on this PC and drops the current connection. Nothin
   <data name="Ui_Forget" xml:space="preserve">
     <value>Forget</value>
   </data>
+  <data name="Ui_DeviceBoxTip" xml:space="preserve">
+    <value>Click to pick a device; if scanning finds nothing, add the address under Settings / Devices</value>
+    <comment>Device picker tooltip</comment>
+  </data>
   <data name="Ui_Audio" xml:space="preserve">
     <value>Audio</value>
   </data>
@@ -373,7 +390,7 @@ This removes the saved entry on this PC and drops the current connection. Nothin
     <value>Audio</value>
   </data>
   <data name="Settings_AutoAudio" xml:space="preserve">
-    <value>Turn audio on automatically after connecting</value>
+    <value>Use PC output for phone audio after connecting</value>
   </data>
   <data name="Settings_EffectiveHint" xml:space="preserve">
     <value>Changes are saved immediately and apply on the next connection</value>
@@ -804,5 +821,34 @@ This removes the saved entry on this PC and drops the current connection. Nothin
   </data>
   <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
     <value>{0}: frame rate {1} · bitrate {2} Mbps</value>
+  </data>  <data name="Menu_Settings_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="Menu_Settings_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="About_RepoSection" xml:space="preserve">
+    <value>Project repository</value>
+  </data>
+  <data name="About_RepoUrl" xml:space="preserve">
+    <value>https://github.com/jiumooo/hdc-mirror</value>
+  </data>
+  <data name="About_RepoUrlHint" xml:space="preserve">
+    <value>Open the repository in your default browser</value>
+  </data>
+  <data name="About_RepoHint" xml:space="preserve">
+    <value>Source, release packages and release notes live here — click the address above.</value>
+  </data>
+  <data name="About_FeedbackSection" xml:space="preserve">
+    <value>Feedback</value>
+  </data>
+  <data name="About_FeedbackHint" xml:space="preserve">
+    <value>Search for an existing issue first; if none matches, open a new one with clear steps.</value>
+  </data>
+  <data name="About_LicenseSection" xml:space="preserve">
+    <value>License and third-party components</value>
+  </data>
+  <data name="About_LicenseBody" xml:space="preserve">
+    <value>This project is MIT-licensed. Video decoding uses FFmpeg (LGPL 2.1 or later, dynamically linked and replaceable); the UI framework WPF-UI, the tray library H.NotifyIcon and the updater Velopack are MIT-licensed.</value>
   </data>
 </root>

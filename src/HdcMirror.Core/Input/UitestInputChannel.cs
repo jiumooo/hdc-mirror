@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
@@ -41,6 +41,21 @@ public sealed class UitestInputChannel : IAsyncDisposable
     private readonly Task _readLoop;
     private int _disposed;
 
+    // ── 诊断：入队 → 真正写进 socket 的耗时（毫秒），每 60 条打一行 ──
+    private readonly System.Collections.Concurrent.ConcurrentQueue<long> _stamps = new();
+    private double _delaySum;
+    private long _delayMax;
+    private long _written;
+
+    /// <summary>链路已断（写/读循环捕获到 IO 异常）。TCP 的 Connected 属性不会及时反映对端关闭，必须自己记。</summary>
+    private int _broken;
+
+    /// <summary>最后一次按下/移动的坐标，抬起时原样带回（见 <see cref="TouchUp"/> 的说明）。</summary>
+    private int _lastX;
+
+    /// <summary>最后一次按下/移动的坐标，抬起时原样带回。</summary>
+    private int _lastY;
+
     private UitestInputChannel(HdcRunner runner, ILogSink log, int localPort, TcpClient tcp, int devicePort)
     {
         _runner = runner;
@@ -66,7 +81,32 @@ public sealed class UitestInputChannel : IAsyncDisposable
     public int DevicePort { get; }
 
     /// <summary>通道是否还活着。</summary>
-    public bool IsConnected => Volatile.Read(ref _disposed) == 0 && _tcp.Connected;
+    public bool IsBroken => Volatile.Read(ref _broken) != 0;
+
+    /// <inheritdoc />
+    /// <summary>还没写进 socket 的手势条数（诊断用）。</summary>
+    public int PendingCount => _outbox.Reader.Count;
+
+    /// <summary>
+    /// 丢掉还没写进 socket 的手势帧。
+    /// 鼠标上报率可到 500~1000 次/秒，而设备按 60Hz 回放，
+    /// 抬手时若不清队列，设备会把积压的几百帧慢慢放完——表现就是「手停了，手机还在滑」。
+    /// </summary>
+    public void DropPending()
+    {
+        int dropped = 0;
+        while (_outbox.Reader.TryRead(out _))
+        {
+            dropped++;
+        }
+
+        if (dropped > 0)
+        {
+            _log.Info(Category, $"抬手前丢弃积压 {dropped} 帧，避免松手后还在滑");
+        }
+    }
+
+    public bool IsConnected => Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _broken) == 0 && _tcp.Connected;
 
     /// <summary>
     /// 建立到设备 uitest daemon 的通道：先 <c>hdc fport</c> 把设备 8012 转到本机空闲端口，再连上去。
@@ -83,14 +123,18 @@ public sealed class UitestInputChannel : IAsyncDisposable
         ILogSink? log = null,
         int firstPort = 15600,
         int lastPort = 15620,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool sweepStale = true)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ILogSink sink = log ?? NullLogSink.Instance;
 
         // 上一次会话被强杀（进程崩溃、直接结束任务）时来不及撤转发，
         // 设备上会攒下一串 tcp:156xx → 8012。开工前先扫掉自己这一段，免得越积越多。
-        await ClearStaleForwardsAsync(runner, sink, firstPort, lastPort, cancellationToken).ConfigureAwait(false);
+        if (sweepStale)
+        {
+            await ClearStaleForwardsAsync(runner, sink, firstPort, lastPort, cancellationToken).ConfigureAwait(false);
+        }
 
         for (int port = firstPort; port <= lastPort; port++)
         {
@@ -121,7 +165,14 @@ public sealed class UitestInputChannel : IAsyncDisposable
                 sink.Warn(Category, $"本地端口 {port} 连不上 uitest daemon：{ex.Message}");
                 tcp.Dispose();
                 await runner.RunAsync(
-                    new[] { "fport", "rm", "tcp:" + port.ToString(CultureInfo.InvariantCulture) },
+                    new[]
+                    {
+                        "fport",
+                        "rm",
+                        "tcp:" + port.ToString(CultureInfo.InvariantCulture),
+                        // hdc 3.2.0c 必须带远端规格才真删；只给 tcp:15600 会静默成功但不生效。
+                        "tcp:" + DeviceRpcPort.ToString(CultureInfo.InvariantCulture),
+                    },
                     cancellationToken).ConfigureAwait(false);
                 continue;
             }
@@ -179,7 +230,14 @@ public sealed class UitestInputChannel : IAsyncDisposable
             }
 
             await runner.RunAsync(
-                new[] { "fport", "rm", "tcp:" + port.ToString(CultureInfo.InvariantCulture) },
+                    new[]
+                    {
+                        "fport",
+                        "rm",
+                        "tcp:" + port.ToString(CultureInfo.InvariantCulture),
+                        // hdc 3.2.0c 必须带远端规格才真删；只给 tcp:15600 会静默成功但不生效。
+                        "tcp:" + DeviceRpcPort.ToString(CultureInfo.InvariantCulture),
+                    },
                 cancellationToken).ConfigureAwait(false);
             sink.Info(Category, $"清掉残留转发 tcp:{port} → {target}");
         }
@@ -188,15 +246,28 @@ public sealed class UitestInputChannel : IAsyncDisposable
     /// <summary>按下。</summary>
     /// <param name="x">设备像素 X。</param>
     /// <param name="y">设备像素 Y。</param>
-    public void TouchDown(int x, int y) => EnqueueGesture("touchDown", x, y);
+    public void TouchDown(int x, int y)
+    {
+        _lastX = x;
+        _lastY = y;
+        EnqueueGesture("touchDown", x, y);
+    }
 
     /// <summary>移动。</summary>
     /// <param name="x">设备像素 X。</param>
     /// <param name="y">设备像素 Y。</param>
-    public void TouchMove(int x, int y) => EnqueueGesture("touchMove", x, y);
+    public void TouchMove(int x, int y)
+    {
+        _lastX = x;
+        _lastY = y;
+        EnqueueGesture("touchMove", x, y);
+    }
 
-    /// <summary>抬起。</summary>
-    public void TouchUp() => EnqueueGesture("touchUp", 0, 0);
+    /// <summary>
+    /// 抬起。<b>必须带最后停留的坐标</b>：设备侧收到 (0,0) 的抬起会把触点挪到左上角，
+    /// 表现为画板上多出一条斜线、列表松手后弹回原位。
+    /// </summary>
+    public void TouchUp() => EnqueueGesture("touchUp", _lastX, _lastY);
 
     /// <summary>单击：按下 → 抬起。</summary>
     /// <param name="x">设备像素 X。</param>
@@ -218,6 +289,7 @@ public sealed class UitestInputChannel : IAsyncDisposable
             x,
             y);
 
+        _stamps.Enqueue(System.Diagnostics.Stopwatch.GetTimestamp());
         if (!_outbox.Writer.TryWrite(json))
         {
             _log.Warn(Category, "输入队列已满，丢弃一条手势。");
@@ -251,6 +323,28 @@ public sealed class UitestInputChannel : IAsyncDisposable
                 offset += Tail.Length;
 
                 await _stream.WriteAsync(buffer.AsMemory(0, offset), _cts.Token).ConfigureAwait(false);
+
+                if (_stamps.TryDequeue(out long stamp))
+                {
+                    double delay = (System.Diagnostics.Stopwatch.GetTimestamp() - stamp) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+                    _delaySum += delay;
+                    if (delay > _delayMax)
+                    {
+                        _delayMax = (long)Math.Ceiling(delay);
+                    }
+
+                    long written = ++_written;
+                    if (written % 60 == 0)
+                    {
+                        _log.Info(Category, string.Format(
+                            CultureInfo.InvariantCulture,
+                            "输入写入延迟：近 60 条平均 {0:0.0} ms，最大 {1} ms",
+                            _delaySum / 60d,
+                            _delayMax));
+                        _delaySum = 0;
+                        _delayMax = 0;
+                    }
+                }
             }
         }
         catch (OperationCanceledException)
@@ -258,6 +352,7 @@ public sealed class UitestInputChannel : IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or SocketException)
         {
+            Interlocked.Exchange(ref _broken, 1);
             _log.Warn(Category, $"输入通道写入结束：{ex.Message}");
         }
     }
@@ -284,7 +379,8 @@ public sealed class UitestInputChannel : IAsyncDisposable
         {
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or SocketException)
-        {
+        { 
+                Interlocked.Exchange(ref _broken, 1);
             _log.Warn(Category, $"输入通道读取结束：{ex.Message}");
         }
     }
@@ -382,6 +478,7 @@ public sealed class UitestInputChannel : IAsyncDisposable
                 "fport",
                 "rm",
                 "tcp:" + _localPort.ToString(CultureInfo.InvariantCulture),
+                "tcp:" + DevicePort.ToString(CultureInfo.InvariantCulture),
             }).ConfigureAwait(false);
         }
         catch (HdcException ex)

@@ -40,6 +40,14 @@ public sealed class AudioSinkHost : IDisposable
     private readonly object _gate = new();
     private Process? _process;
 
+    /// <summary>上一次成功路由到的端点 ID；用来发现“系统默认输出变了”。</summary>
+    private string? _appliedDeviceId;
+    private string? _savedDefault;
+    private string? _switchedTo;
+
+    /// <summary>监听系统默认输出变化的定时器（仅连接期间工作，2.5 秒一次）。</summary>
+    private System.Threading.Timer? _deviceWatch;
+
     /// <summary>
     /// 诊断日志出口。默认写本机滚动日志文件（<c>%LOCALAPPDATA%\HdcMirror\logs</c>），
     /// 设置页与这里共用一份，避免开多个写同一文件的句柄。
@@ -94,6 +102,10 @@ public sealed class AudioSinkHost : IDisposable
     /// <returns>子进程是否成功启动。</returns>
     public bool Start()
     {
+        ApplySelectedDevice();
+
+        // 用户要求：软件不得修改系统默认输出设备。这里只记录所选设备，不做切换。
+
         lock (_gate)
         {
             if (_process is { HasExited: false })
@@ -151,6 +163,11 @@ public sealed class AudioSinkHost : IDisposable
             process = _process;
             _process = null;
         }
+
+        _deviceWatch?.Dispose();
+        _deviceWatch = null;
+        _appliedDeviceId = null;
+        RestoreDefaultDevice();
 
         if (process is null)
         {
@@ -246,7 +263,26 @@ public sealed class AudioSinkHost : IDisposable
                 }
                 else if (line.StartsWith("STATE ", StringComparison.Ordinal))
                 {
-                    // Windows.Media.Audio.AudioPlaybackConnectionState 的枚举名，仅用于日志排查。
+                    // 子进程会把 AudioPlaybackConnection.State 的枚举名打出来：
+                    //   Opened = 手机已经把音频推过来了（哪怕不是我们这次 Open 触发的，
+                    //            比如手机自动连回上次的电脑），这时就该算「已连接」，
+                    //            否则界面会一直停在「正在等手机把音频输出切到电脑」。
+                    string value = line["STATE ".Length..].Trim();
+                    if (value.Equals("Opened", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (State != AudioSinkState.Connected)
+                        {
+                            LastError = null;
+                            ApplyVolumePolicy();
+                            ApplyOutputDevice();
+                            SetState(AudioSinkState.Connected, string.Empty);
+                        }
+                    }
+                    else if (value.Equals("Closed", StringComparison.OrdinalIgnoreCase)
+                             && State == AudioSinkState.Connected)
+                    {
+                        SetState(AudioSinkState.WaitingForPhone, string.Empty);
+                    }
                 }
                 else if (line.StartsWith("ERROR ", StringComparison.Ordinal))
                 {
@@ -288,35 +324,173 @@ public sealed class AudioSinkHost : IDisposable
     }
 
     /// <summary>
-    /// 输出设备策略：用户选了具体设备就只把这一个子进程切过去，
-    /// 没选（空串）就跟随系统默认，什么都不做。
-    /// 接口不可用时只写日志，播放链路照旧从默认设备出声。
+    /// 输出设备策略：本机（Win11 26300 / .NET 8）**不支持按应用路由** ——
+    /// Windows.Media.Internal.AudioPolicyConfig 是 IInspectable 接口，.NET 无法做互操作，
+    /// 裸 vtable 调用会直接 AccessViolation。因此改为「监听系统默认输出，一变就把接收端重启一次」，
+    /// 新会话自然落在新的默认设备上。切换代价是一次重连（约 1~3 秒）。
     /// </summary>
-    private void ApplyOutputDevice()
-    {
-        int pid = ProcessId;
-        if (pid <= 0)
-        {
-            return;
-        }
 
-        string deviceId = Services.AppSettings.Current.AudioOutputDeviceId;
+    /// <summary>停止接收时把系统默认输出还原成接收前的设备。</summary>
+    /// <summary>
+    /// 用户在设置里选了输出设备：把系统默认播放设备临时切到它。
+    /// 传空串表示「跟随系统默认」，会立刻还原成接收前的设备。
+    /// </summary>
+    public void ApplyOutputDevice(string deviceId)
+    {
         if (string.IsNullOrWhiteSpace(deviceId))
         {
-            Log.Write(LogLevel.Info, "audio", "输出设备：跟随系统默认");
+            RestoreDefaultDevice();
             return;
         }
 
-        if (AudioDeviceService.TryRouteProcessToDevice(pid, deviceId, Log))
+        _savedDefault ??= AudioDeviceService.GetDefaultRenderDeviceId(Log);
+        if (string.Equals(deviceId, _switchedTo, StringComparison.OrdinalIgnoreCase))
         {
-            Log.Write(LogLevel.Info, "audio", "接收端输出已切到所选设备（PID "
-                + pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + "）");
+            return;
+        }
+
+        if (DefaultDeviceSwitcher.TrySetDefault(deviceId, out string error))
+        {
+            _switchedTo = deviceId;
+            Log.Write(LogLevel.Info, "audio", "已切换到所选输出设备：" + deviceId + "（停止接收后还原）");
+        }
+        else
+        {
+            Log.Write(LogLevel.Warn, "audio", "切换输出设备失败：" + error);
         }
     }
 
+    private void ApplySelectedDevice()
+    {
+        string wanted = Services.AppSettings.Current.AudioOutputDeviceId;
+        if (!string.IsNullOrWhiteSpace(wanted))
+        {
+            ApplyOutputDevice(wanted);
+        }
+    }
+
+    /// <summary>停止接收时把系统默认输出还原成接收前的设备。</summary>
+    private void RestoreDefaultDevice()
+    {
+        if (string.IsNullOrWhiteSpace(_savedDefault))
+        {
+            _switchedTo = null;
+            return;
+        }
+
+        if (DefaultDeviceSwitcher.TrySetDefault(_savedDefault, out string error))
+        {
+            Log.Write(LogLevel.Info, "audio", "已还原系统默认输出：" + _savedDefault);
+        }
+        else
+        {
+            Log.Write(LogLevel.Warn, "audio", "还原默认输出失败：" + error);
+        }
+
+        _savedDefault = null;
+        _switchedTo = null;
+    }
+
+    private void ApplyOutputDevice()
+    {
+        try
+        {
+            int pid = ProcessId;
+            if (pid <= 0)
+            {
+                return;
+            }
+    
+            string current = AudioDeviceService.GetDefaultRenderDeviceId(Log);
+            if (string.IsNullOrEmpty(current))
+            {
+                Log.Write(LogLevel.Info, "audio", "输出设备：读不到系统默认设备，交由系统自动处理");
+                return;
+            }
+    
+            bool changed = _appliedDeviceId is not null
+                && !string.Equals(current, _appliedDeviceId, StringComparison.OrdinalIgnoreCase);
+            _appliedDeviceId = current;
+    
+            if (changed)
+            {
+                // 系统默认设备变了：Windows 会自己把已有的渲染会话迁过去（用户听到的「断一下就继续」就是它）。
+                // 我们不重启接收端 —— 重启会多出 1~3 秒静音，还会把按应用锁定的设备设置冲掉。
+                Log.Write(
+                    LogLevel.Info,
+                    "audio",
+                    "系统默认输出已变化，交由 Windows 迁移会话（PID "
+                        + pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + "）");
+                return;
+            }
+    
+            Log.Write(LogLevel.Info, "audio", "输出设备：跟随系统默认 / 按应用锁定（已记录当前设备）");
+            StartDeviceWatch();
+        }
+        catch (Exception ex)
+        {
+            // 音频链路上的任何异常都不许冒到界面上（会把整个程序带崩）。
+            Log.Write(LogLevel.Warn, "audio", "读取/应用输出设备失败：" + ex.Message, ex);
+        }
+    }
+
+    /// <summary>重启接收端子进程：新会话会落在当前系统默认输出设备上。</summary>
+    private void RestartSink()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                Stop();
+                await Task.Delay(400).ConfigureAwait(false);
+                Start();
+            }
+            catch (Exception ex)
+            {
+                Log.Write(LogLevel.Warn, "audio", "重启接收端失败：" + ex.Message, ex);
+            }
+        });
+    }
+
+    /// <summary>开启默认设备监听（重复调用无副作用）。</summary>
+    private void StartDeviceWatch()
+    {
+        if (_deviceWatch is not null)
+        {
+            return;
+        }
+
+        _deviceWatch = new System.Threading.Timer(_ => WatchDefaultDevice(), null, 2500, 2500);
+    }
+
+    private void WatchDefaultDevice()
+    {
+        try
+        {
+            if (State != AudioSinkState.Connected || ProcessId <= 0)
+            {
+                return;
+            }
+
+            string current = AudioDeviceService.GetDefaultRenderDeviceId(Log);
+            if (string.IsNullOrEmpty(current)
+                || string.Equals(current, _appliedDeviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            ApplyOutputDevice();
+        }
+        catch (Exception ex)
+        {
+            Log.Write(LogLevel.Warn, "audio", "监听默认输出变化失败：" + ex.Message, ex);
+        }
+    }
+
+
     private void SetState(AudioSinkState state, string detail)
     {
-        State = state;
+        Log.Write(LogLevel.Info, "audio", "状态 -> " + state + (string.IsNullOrEmpty(detail) ? "" : "（" + detail + "）"));
         StateChanged?.Invoke(state, detail);
     }
 }

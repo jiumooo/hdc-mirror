@@ -25,12 +25,12 @@
                 Margin="0,14,0,0"
                 Orientation="Horizontal">
                 <ui:Button
-                    Height="30"
+                    MinHeight="32"
                     MinWidth="104"
                     Click="OnAddClick"
                     Content="{x:Static res:Strings.Keys_Add}" />
                 <ui:Button
-                    Height="30"
+                    MinHeight="32"
                     Margin="8,0,0,0"
                     MinWidth="104"
                     Appearance="Primary"

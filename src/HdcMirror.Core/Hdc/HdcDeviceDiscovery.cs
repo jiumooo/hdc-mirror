@@ -63,6 +63,9 @@ public sealed class HdcDiscoveryOptions
     /// </summary>
     public IReadOnlyList<string> Subnets { get; init; } = Array.Empty<string>();
 
+    /// <summary>是否扫描本机所在 /24（1012 台 × 端口）。细扫档关掉它可以省约 4 秒。</summary>
+    public bool ProbeLocalSubnets { get; init; } = true;
+
     /// <summary>
     /// 候选端口。鸿蒙的无线调试端口是**随机会话端口**（实测这台是五位数），
     /// 所以这里只放协议上的固定端口；随机端口要靠 <c>hdc discover</c> 广播或用户手填。
@@ -122,6 +125,9 @@ public sealed class HdcDiscoveryOptions
     /// </para>
     /// </summary>
     public bool VerifyWithTconn { get; init; } = true;
+
+    /// <summary>单次 <c>hdc tconn</c> 校验的超时。细扫时每个误报端口都要验一次，太长会拖垮整轮扫描。</summary>
+    public int VerifyTimeoutMilliseconds { get; init; } = 1500;
 }
 
 /// <summary>
@@ -145,6 +151,7 @@ public sealed class HdcDeviceDiscovery
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly HdcRunner _serverRunner;
+    private readonly HdcRunner _verifyRunner;
     private readonly ILogSink _log;
 
     /// <summary>创建发现器。</summary>
@@ -163,6 +170,13 @@ public sealed class HdcDeviceDiscovery
             deviceSerial: null,
             log: _log,
             commandTimeout: Options.BroadcastTimeout + TimeSpan.FromSeconds(2));
+
+        // tconn 校验单独用更短的超时：细扫时每个"端口静默但不是 hdc"的误报都要验一次。
+        _verifyRunner = new HdcRunner(
+            hdcPath,
+            deviceSerial: null,
+            log: _log,
+            commandTimeout: TimeSpan.FromMilliseconds(Options.VerifyTimeoutMilliseconds));
     }
 
     /// <summary>当前使用的扫描参数。</summary>
@@ -311,7 +325,7 @@ public sealed class HdcDeviceDiscovery
             : new[] { "tconn", endpoint };
         try
         {
-            var result = await _serverRunner.RunAsync(arguments, cancellationToken).ConfigureAwait(false);
+            var result = await _verifyRunner.RunAsync(arguments, cancellationToken).ConfigureAwait(false);
             var output = result.CombinedOutput;
             _log.Info(Category,
                 $"{(remove ? "tconn -remove" : "tconn")} {endpoint} → exit={result.ExitCode}：{Collapse(output, 200)}");
@@ -407,6 +421,13 @@ public sealed class HdcDeviceDiscovery
 
     private async Task<IReadOnlyList<string>> ProbeCandidatePortsAsync(ProgressState state, CancellationToken cancellationToken)
     {
+            if (!Options.ProbeLocalSubnets)
+            {
+                // 细扫档只关心线索主机，全网段探测纯属白等（实测约 4 秒）。
+                state.Enter(HdcDiscoveryStage.ProbingPorts, 0, 0, string.Empty);
+                return Array.Empty<string>();
+            }
+
         var ports = Options.CandidatePorts;
         var hosts = CollectHosts();
         var known = Options.KnownEndpoints;
@@ -475,39 +496,86 @@ public sealed class HdcDeviceDiscovery
                 continue;
             }
 
-            var hostHits = 0;
-            const int window = 2048;
-            for (var start = Options.DeepScanPortMin; start <= Options.DeepScanPortMax; start += window)
+            // 先扫高位端口：鸿蒙无线调试用的是临时端口（实测 45485、36987），多数落在 30000 以上，
+            // 命中后就不再扫其余区间，平均耗时明显低于从 1024 顺序往上扫。
+            var segments = new List<(int From, int To)>(2);
+            var highFrom = Math.Max(Options.DeepScanPortMin, 32768);
+            if (highFrom <= Options.DeepScanPortMax)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var end = Math.Min(start + window - 1, Options.DeepScanPortMax);
-                var batch = new List<Task>(end - start + 1);
-                for (var port = start; port <= end; port++)
-                {
-                    batch.Add(ProbeOneAsync(address, port, gate, hits, state, cancellationToken));
-                }
+                segments.Add((highFrom, Options.DeepScanPortMax));
+            }
 
-                await Task.WhenAll(batch).ConfigureAwait(false);
-                hostHits = 0;
-                foreach (var hit in hits)
-                {
-                    if (hit.StartsWith(hostText + ":", StringComparison.Ordinal))
-                    {
-                        hostHits++;
-                    }
-                }
+            var lowTo = Math.Min(Options.DeepScanPortMax, highFrom - 1);
+            if (lowTo >= Options.DeepScanPortMin)
+            {
+                segments.Add((Options.DeepScanPortMin, lowTo));
+            }
 
-                // 一台机器上已经命中端口就没必要继续扫它的其余端口：无线调试只开一个端口。
-                if (hostHits > 0)
+            var hitBefore = 0;
+            var verifyFailures = 0;
+            var stop = false;
+            foreach ((int from, int to) in segments)
+            {
+                const int window = 2048;
+                for (var start = from; start <= to && !stop; start += window)
                 {
-                    var remaining = Options.DeepScanPortMax - end;
-                    if (remaining > 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var end = Math.Min(start + window - 1, to);
+                    var batch = new List<Task>(end - start + 1);
+                    for (var port = start; port <= end; port++)
                     {
-                        state.Advance(remaining);
+                        batch.Add(ProbeOneAsync(address, port, gate, hits, state, cancellationToken));
                     }
 
-                    _log.Info(Category, $"{hostText} 已命中端口，停止对该主机的深度扫描。");
-                    break;
+                    await Task.WhenAll(batch).ConfigureAwait(false);
+
+                    // 端口静默 ≠ hdc：实测 192.0.2.10:8012（uitest 通道）就会静默接受连接。
+                    // 必须当场用 tconn 验一次——否则一个误报会让这台主机提前停止扫描，真正要的端口反而永远扫不到。
+                    if (hits.Count > hitBefore)
+                    {
+                        var verified = false;
+                        for (var index = hitBefore; index < hits.Count; index++)
+                        {
+                            var candidate = hits[index];
+
+                            // 命中列表是全局的：只验本主机的端口，别拿别的主机结果让这台提前收工。
+                            if (!candidate.StartsWith(hostText + ":", StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+                            if (await TconnAsync(candidate, remove: false, cancellationToken).ConfigureAwait(false))
+                            {
+                                verified = true;
+                                _log.Info(Category, $"{candidate} 通过 tconn 验证。");
+                                break;
+                            }
+
+                            if (!await TconnAsync(candidate, remove: true, cancellationToken).ConfigureAwait(false))
+                            {
+                                _log.Warn(Category, $"{candidate} 是误报，清理残留连接失败。");
+                            }
+
+                            _log.Info(Category, $"{candidate} 端口静默但不是 hdc，继续扫描。");
+
+                            // 一台主机连着给出几个静默但非 hdc 的端口，说明这台上没有 hdc 服务：
+                            // 再往下扫只会不断触发 1.5 秒的 tconn 超时，直接放弃这台。
+                            if (++verifyFailures >= 4)
+                            {
+                                stop = true;
+                                state.Advance(to - end);
+                                _log.Info(Category, $"{hostText} 连续 {verifyFailures} 个端口都不是 hdc，放弃这台主机的细扫。");
+                                break;
+                            }
+                        }
+
+                        hitBefore = hits.Count;
+                        if (verified)
+                        {
+                            stop = true;
+                            state.Advance(to - end);
+                            _log.Info(Category, $"{hostText} 已找到可用端口，停止对该主机的深度扫描。");
+                        }
+                    }
                 }
             }
         }

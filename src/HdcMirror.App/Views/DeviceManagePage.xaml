@@ -51,7 +51,7 @@
 
                                 <ui:Button
                                     Grid.Column="1"
-                                    Height="26"
+                                    MinHeight="32"
                                     Margin="6,0,0,0"
                                     Padding="10,0"
                                     Appearance="Primary"
@@ -60,7 +60,7 @@
 
                                 <Button
                                     Grid.Column="2"
-                                    Height="26"
+                                    MinHeight="32"
                                     Margin="6,0,0,0"
                                     Padding="8,0"
                                     Background="Transparent"
@@ -91,10 +91,10 @@
                 Text="{x:Static res:Strings.DevMgr_Manual}" />
             <ui:TextBox
                 x:Name="IpBox"
-                Height="30"
+                MinHeight="36"
                 MinWidth="180"
                 HorizontalAlignment="Stretch"
-                PlaceholderText="{x:Static res:Strings.DevMgr_IpPlaceholder}" />
+                PlaceholderText="{x:Static res:Strings.DevMgr_IpPlaceholder}" VerticalContentAlignment="Center" />
             <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="126" />
@@ -104,13 +104,13 @@
                 <ui:TextBox
                     x:Name="PortBox"
                     Grid.Column="0"
-                    Height="30"
+                    MinHeight="36"
                     Margin="0,0,8,0"
-                    PlaceholderText="{x:Static res:Strings.DevMgr_PortPlaceholder}" />
+                    PlaceholderText="{x:Static res:Strings.DevMgr_PortPlaceholder}" VerticalContentAlignment="Center" />
 
                 <ui:Button
                     Grid.Column="1"
-                    Height="30"
+                    MinHeight="32"
                     HorizontalAlignment="Right"
                     Padding="14,0"
                     Appearance="Primary"

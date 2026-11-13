@@ -22,6 +22,7 @@ public sealed class AppSettings
     private static AppSettings? _current;
 
     /// <summary>启动后是否自动扫描局域网设备（关掉则只能手动点「扫描」）。</summary>
+    /// <summary>调试用：在鼠标落点画一个触摸点指示圈（只在 Debug 构建里生效，正式版不编译进去）。</summary>
     public bool AutoScanOnStart { get; set; } = true;
 
     /// <summary>当前生效的设置（首次访问时从磁盘加载）。</summary>

@@ -76,6 +76,9 @@ public partial class MainWindow
     /// <summary>定时抓手机画面做背景（见 Services\LockScreenCapture.cs）；没有设备前为 null。</summary>
     private LockScreenCapture? _lockShot;
 
+    /// <summary>设备栏当前选中的设备。</summary>
+    private DeviceEntry? _selected;
+
     /// <summary>正在读设备信息；启动流程与选中事件会同时触发，用它挡住重复绘制。</summary>
     private bool _infoLoading;
 
@@ -92,6 +95,7 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+        RegisterTopMenus();
 
         // 带产品名的菜单项在代码里拼，避免在 XAML 里写死名称（需求 §6.4）
         MenuApp.Header = Strings.Menu_App;
@@ -106,9 +110,26 @@ public partial class MainWindow
         // 首屏必须在 Loaded 之后设置内容：窗口未加载时控件模板尚未套用，
         // 提前操作内容宿主会在 WPF 内部抛 NullReferenceException（见 docs\10-缺陷记录.md BUG-001）。
         Loaded += OnFirstLoaded;
-        PreviewKeyDown += OnPreviewKeyDown;
         StateChanged += OnWindowStateChanged;
-        DevicePicker.DropDownClosed += OnDevicePickerDropDownClosed;
+    }
+
+    /// <summary>设备栏当前选中的设备；切换时同步刷新下拉里每一项的按钮形态。</summary>
+    private DeviceEntry? Selected
+    {
+        get => _selected;
+        set
+        {
+            if (ReferenceEquals(_selected, value))
+            {
+                return;
+            }
+
+            _selected = value;
+            foreach (DeviceEntry item in Devices)
+            {
+                item.IsCurrent = ReferenceEquals(item, value);
+            }
+        }
     }
 
     private void OnFirstLoaded(object sender, RoutedEventArgs e)
@@ -123,7 +144,6 @@ public partial class MainWindow
         CenterVertically();
 
         // 全新安装（还没记住过任何设备）时，手机屏中央直接给手动连接表单。
-        UpdateManualPanel();
 
         // 有上次抓下来的手机画面就先铺上去，别一开就是纯黑。
         UpdatePhoneBackground();
@@ -221,7 +241,6 @@ public partial class MainWindow
                     await RefreshDevicesAsync().ConfigureAwait(true);
                 }
 
-                UpdateManualPanel();
                 return;
             }
 
@@ -232,10 +251,9 @@ public partial class MainWindow
                 _store.Remember(candidate.Serial, null);
             }
 
-            DevicePicker.SelectedItem = Devices.Count > 0 ? Devices[0] : null;
+            SelectDevice(Devices.Count > 0 ? Devices[0] : null);
             await ShowDeviceInfoAsync(device).ConfigureAwait(true);
             ConnectButton.IsEnabled = true;
-            UpdateManualPanel();
         }
         catch (HdcException ex)
         {
@@ -385,14 +403,6 @@ public partial class MainWindow
         SetContentMode(false);
     }
 
-    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Q && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-        {
-            e.Handled = true;
-            RequestExit();
-        }
-    }
 
     private static void RequestExit()
     {
@@ -481,19 +491,43 @@ public partial class MainWindow
     private static Task<IReadOnlyList<HdcDiscoveredDevice>> ScanAsync(
         FileLogSink log,
         IReadOnlyList<string> hints,
-        bool deep)
+        bool deep,
+        CancellationToken cancellationToken = default,
+        IProgress<HdcDiscoveryProgress>? progress = null)
     {
         var options = new HdcDiscoveryOptions
         {
             KnownEndpoints = hints,
             EnableBroadcast = !deep,
-            BroadcastTimeout = deep ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(7),
+            // 广播实测固定 6 秒才返回，且本机常被防火墙挡住：常规档给 4 秒，细扫档不给广播。
+            BroadcastTimeout = deep ? TimeSpan.FromSeconds(1) : TimeSpan.FromSeconds(4),
             DeepScan = deep && hints.Count > 0,
-            DeepScanConcurrency = 192,
-            ConnectTimeoutMilliseconds = deep ? 150 : 300,
+            // 细扫档只针对线索主机：跳过 /24 全网段探测（实测省约 4 秒）。
+            ProbeLocalSubnets = !deep,
+            // 细扫是「主机 × 6 万个端口」，并发拉高、超时压短，才不至于让用户干等一分钟。
+            DeepScanConcurrency = 768,
+            MaxConcurrency = deep ? 128 : 64,
+            ConnectTimeoutMilliseconds = deep ? 80 : 250,
+            HdcSilenceWindowMilliseconds = deep ? 250 : 400,
         };
 
-        return new HdcDeviceDiscovery(log: log, options: options).ScanAsync();
+        return new HdcDeviceDiscovery(log: log, options: options).ScanAsync(progress, cancellationToken);
+    }
+
+    /// <summary>细扫进度回调：把「主机 · 百分比」写到状态栏，别让用户以为卡死了。</summary>
+    private void OnDeepScanProgress(HdcDiscoveryProgress progress)
+    {
+        if (progress.Stage != HdcDiscoveryStage.DeepScanning)
+        {
+            return;
+        }
+
+        int percent = (int)Math.Round(progress.Ratio * 100d);
+        ShowStatus(string.Format(
+            CultureInfo.CurrentCulture,
+            Strings.Status_ScanDeepProgressFormat,
+            string.IsNullOrEmpty(progress.Detail) ? "-" : progress.Detail,
+            percent));
     }
 
     /// <summary>从线索库里取这台设备上次用的显示名；没有就返回 <see langword="null"/>。</summary>
@@ -510,8 +544,21 @@ public partial class MainWindow
         return null;
     }
 
-    private async void OnScanClick(object sender, RoutedEventArgs e) => await RefreshDevicesAsync().ConfigureAwait(true);
+    /// <summary>
+    /// 扫描按钮一身两用：没有设备就直接去局域网里找；已经连着设备就先刷新这台的信息，
+    /// 再顺带扫一遍局域网里的其它设备（用户要求「扫描兼刷新，不再单独留刷新按钮」）。
+    /// </summary>
+    private async void OnScanClick(object sender, RoutedEventArgs e)
+    {
+        if (Selected is DeviceEntry { Device: { } device })
+        {
+            await ShowDeviceInfoAsync(device).ConfigureAwait(true);
+        }
 
+        await RefreshDevicesAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>扫描并用结果填充设备下拉；已连接设备与局域网发现并行跑。</summary>
     private async Task RefreshDevicesAsync()
     {
         ScanButton.IsEnabled = false;
@@ -522,30 +569,68 @@ public partial class MainWindow
             var runner = new HdcRunner(log: log);
             var enumerator = new HdcDeviceEnumerator(runner, log);
 
-            // ① 已连接设备：这些可以直接镜像，优先级最高。
-            IReadOnlyList<HdcDevice> connected = await enumerator.EnumerateAsync().ConfigureAwait(true);
-
-            // ② 局域网发现：把尚未连接的设备也列出来，点「连接」时再做 tconn。
-            //    线索库里的端点优先探测——「忘记设备」之后端口还得靠它找回来。
+            // 线索库里的端点最可能对上同一台手机——「忘记设备」之后端口还得靠它找回来。
             IReadOnlyList<string> hints = _hints.Endpoints();
+            if (hints.Count == 0)
+            {
+                // 还没有任何「验证过」的线索时退回全部，否则第一次换端口就无据可查。
+                hints = _hints.Endpoints(verifiedOnly: false);
+            }
+
+            // 已连接设备与局域网发现同时进行：前者读 hdc list targets，后者要等广播与端口探测。
+            Task<IReadOnlyList<HdcDevice>> connectedTask = enumerator.EnumerateAsync();
+
+            // 线索主机并行做端口细扫：无线调试端口被系统换号时，只有全端口扫描能把它找回来。
+            using var deepCts = new CancellationTokenSource();
+            var deepProgress = new Progress<HdcDiscoveryProgress>(OnDeepScanProgress);
+            Task<IReadOnlyList<HdcDiscoveredDevice>> deepTask = hints.Count > 0
+                ? ScanAsync(log, hints, deep: true, deepCts.Token, deepProgress)
+                : Task.FromResult<IReadOnlyList<HdcDiscoveredDevice>>(Array.Empty<HdcDiscoveredDevice>());
+
             IReadOnlyList<HdcDiscoveredDevice> discovered = Array.Empty<HdcDiscoveredDevice>();
             try
             {
                 discovered = await ScanAsync(log, hints, deep: false).ConfigureAwait(true);
-
-                // 一次没扫到，但以前连过：无线调试端口可能被系统换了号，对这几台机器做端口细扫。
-                if (discovered.Count == 0 && hints.Count > 0)
-                {
-                    string first = hints[0];
-                    ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_ScanDeepFormat, first));
-                    _log.Write(LogLevel.Info, "discovery", "常规扫描没结果，对线索主机做端口细扫：" + string.Join(", ", hints));
-                    discovered = await ScanAsync(log, hints, deep: true).ConfigureAwait(true);
-                }
             }
             catch (Exception ex) when (ex is HdcException or IOException or InvalidOperationException)
             {
                 // 发现失败不影响已连接设备的使用。
                 _log.Write(LogLevel.Warn, "discovery", "局域网扫描失败：" + ex.Message);
+            }
+
+            if (discovered.Count == 0 && hints.Count > 0)
+            {
+                // 常规扫描（广播 + 固定端口）扫不到，基本就是端口被换号了：等细扫结果。
+                ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_ScanDeepFormat, hints[0]));
+                _log.Write(LogLevel.Info, "discovery", "常规扫描没结果，等待线索主机的端口细扫：" + string.Join(", ", hints));
+                try
+                {
+                    discovered = await deepTask.ConfigureAwait(true);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex) when (ex is HdcException or IOException or InvalidOperationException)
+                {
+                    _log.Write(LogLevel.Warn, "discovery", "端口细扫失败：" + ex.Message);
+                }
+            }
+            else
+            {
+                // 常规扫描已经找到设备，后台细扫没必要继续占用端口。
+                deepCts.Cancel();
+            }
+
+            // 已连接设备这一路最后收，保证上面两条路径都不会把它漏掉。
+            IReadOnlyList<HdcDevice> connected;
+            try
+            {
+                connected = await connectedTask.ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is HdcException or IOException or InvalidOperationException)
+            {
+                _log.Write(LogLevel.Warn, "discovery", "枚举已连接设备失败：" + ex.Message);
+                connected = Array.Empty<HdcDevice>();
             }
 
             Devices.Clear();
@@ -575,25 +660,14 @@ public partial class MainWindow
                 }
 
                 AddDeviceDistinct(item);
-                _hints.Remember(found.Endpoint, found.DisplayName);
+                // 扫描出来的候选还没连上过，不写线索库：避免把 5555 之类的误报当成"上次用过的端口"。
             }
 
             ConnectButton.IsEnabled = Devices.Count > 0;
             if (Devices.Count > 0)
             {
-                DevicePicker.SelectedIndex = 0;
+                SelectDevice(Devices.Count > 0 ? Devices[0] : null);
 
-                // 可编辑下拉的收起态文字来自 Text；ItemsSource 刚换过时立刻赋值会被清掉，
-                // 所以排到消息队列尾部再补一次。
-                _ = Dispatcher.BeginInvoke(
-                    new Action(() =>
-                    {
-                        if (DevicePicker.SelectedItem is DeviceEntry first)
-                        {
-                            DevicePicker.Text = string.IsNullOrWhiteSpace(first.Name) ? first.Endpoint : first.Name;
-                        }
-                    }),
-                    System.Windows.Threading.DispatcherPriority.Background);
             }
 
             ShowStatus(Devices.Count > 0
@@ -695,7 +769,7 @@ public partial class MainWindow
                 if (IsPlausibleModel(model, endpoint))
                 {
                     entry.Name = model;
-                    _hints.Remember(endpoint, model);
+                    _hints.Remember(endpoint, model, verified: true);
                     _log.Write(LogLevel.Info, "device", "补读到设备名称：" + model + "（" + endpoint + "）");
                 }
             }
@@ -756,47 +830,98 @@ public partial class MainWindow
     }
 
     /// <summary>下拉收起时回到简介视图：再选同一台设备不会触发 SelectionChanged，靠这里兜住。</summary>
-    private void OnDevicePickerDropDownClosed(object? sender, EventArgs e) => ShowInfoView();
-
-    private async void OnDeviceSelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>设备框：有设备就展开列表，一个设备都没有就直接去扫描。</summary>
+    private void OnDeviceBoxClick(object sender, RoutedEventArgs e)
     {
-        if (DevicePicker.SelectedItem is not DeviceEntry entry)
+        if (Devices.Count == 0)
         {
-            ConnectButton.IsEnabled = false;
+            CloseDevicePopup();
+            _ = RefreshDevicesAsync();
             return;
         }
 
-        ConnectButton.IsEnabled = true;
-
-        // 选中即回到「设备简介」视图：否则停在设备管理页时，点下拉看不到任何变化，
-        // 用户会以为下拉框没用（见用户反馈「点开之后用不上」）。
-        ShowInfoView();
-
-        // 已连接的设备可以直接读简介；仅发现的设备要等点了「连接」才拿到序列号。
-        if (entry.Device is { } device)
+        if (DevicePopup.IsOpen)
         {
-            await ShowDeviceInfoAsync(device).ConfigureAwait(true);
+            CloseDevicePopup();
+            return;
         }
-        else
-        {
-            InfoList.Children.Clear();
-            AddInfoRow(Strings.Dev_Info_Name, entry.Name);
-            AddInfoRow(Strings.Dev_Info_Address, EndpointOf(entry));
-            ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_DeviceSelectedFormat, entry.Name));
-        }
+
+        DeviceList.ItemsSource = Devices;
+        DevicePopupPanel.Width = Math.Max(240d, DeviceBox.ActualWidth);
+        DevicePopup.IsOpen = true;
     }
 
-    /// <summary>下拉项右侧的「忘记」按钮：断开这台设备的连接，并从本机列表移除。</summary>
-    private async void OnForgetDeviceClick(object sender, RoutedEventArgs e)
+    private void CloseDevicePopup() => DevicePopup.IsOpen = false;
+
+    /// <summary>点下拉里的某一行：选中它并显示简介。</summary>
+    private void OnDeviceRowClick(object sender, MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not DeviceEntry entry)
         {
             return;
         }
 
-        DevicePicker.IsDropDownOpen = false;
+        e.Handled = true;
+        CloseDevicePopup();
+        SelectDevice(entry);
+    }
+
+    /// <summary>下拉里未连接设备的「连接」按钮。</summary>
+    private async void OnDeviceItemConnectClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not DeviceEntry entry)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CloseDevicePopup();
+        SelectDevice(entry);
+        await ConnectEntryAsync(entry).ConfigureAwait(true);
+    }
+
+    /// <summary>下拉里当前设备的「忘记」按钮。</summary>
+    private async void OnDeviceItemForgetClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not DeviceEntry entry)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CloseDevicePopup();
         await ForgetDeviceAsync(entry).ConfigureAwait(true);
     }
+
+    /// <summary>选中一台设备（不联网）：更新设备框文字、按钮状态与简介视图。</summary>
+    /// <param name="entry">要选中的设备；null 表示清空。</param>
+    private void SelectDevice(DeviceEntry? entry)
+    {
+        Selected = entry;
+        DeviceBoxText.Text = entry?.Name ?? Strings.Dev_NoDevice;
+
+        if (entry is null)
+        {
+            ConnectButton.IsEnabled = false;
+            return;
+        }
+
+        ConnectButton.IsEnabled = true;
+        ShowInfoView();
+
+        // 已连接的设备直接读简介；仅发现的设备要等点了「连接」才拿到序列号。
+        if (entry.Device is { } device)
+        {
+            _ = ShowDeviceInfoAsync(device);
+            return;
+        }
+
+        InfoList.Children.Clear();
+        AddInfoRow(Strings.Dev_Info_Name, entry.Name);
+        AddInfoRow(Strings.Dev_Info_Address, EndpointOf(entry));
+        ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_DeviceSelectedFormat, entry.Name));
+    }
+
 
     /// <summary>
     /// 「忘记设备」＝删掉本机保存的这条记录 + 断开当前 hdc 连接。
@@ -832,11 +957,11 @@ public partial class MainWindow
 
         if (Devices.Count > 0)
         {
-            DevicePicker.SelectedIndex = Math.Clamp(removedIndex, 0, Devices.Count - 1);
+            SelectDevice(Devices[Math.Clamp(removedIndex, 0, Devices.Count - 1)]);
         }
         else
         {
-            DevicePicker.SelectedItem = null;
+            SelectDevice(null);
             ConnectButton.IsEnabled = false;
             InfoList.Children.Clear();
             InfoPanel.Visibility = Visibility.Collapsed;
@@ -885,27 +1010,20 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// 刷新：没选设备就重扫列表；选了已连接的设备就重读它的简介（型号/系统/分辨率等）。
-    /// 与「扫描」刻意分开——扫描是找设备，刷新是更新眼下这台的信息。
-    /// </summary>
-    private async void OnRefreshClick(object sender, RoutedEventArgs e)
-    {
-        if (DevicePicker.SelectedItem is DeviceEntry { Device: { } device })
-        {
-            await ShowDeviceInfoAsync(device).ConfigureAwait(true);
-            return;
-        }
-
-        await RefreshDevicesAsync().ConfigureAwait(true);
-    }
     private async void OnConnectClick(object sender, RoutedEventArgs e)
     {
-        if (DevicePicker.SelectedItem is not DeviceEntry entry)
+        if (Selected is not DeviceEntry entry)
         {
             return;
         }
 
+        await ConnectEntryAsync(entry).ConfigureAwait(true);
+    }
+
+    /// <summary>把某个条目真正连上并打开镜像窗（下拉项里的「连接」也走这里）。</summary>
+    /// <param name="entry">要连接的条目。</param>
+    private async Task ConnectEntryAsync(DeviceEntry entry)
+    {
         HdcDevice? device = await ResolveDeviceAsync(entry).ConfigureAwait(true);
         if (device is null)
         {
@@ -950,7 +1068,7 @@ public partial class MainWindow
             match ??= nowConnected.Count > 0 ? nowConnected[0] : null;
 
             // 连上了就把端点记进线索库：以后即使「忘记设备」，扫描也能凭它把端口找回来。
-            _hints.Remember(endpoint, null);
+            _hints.Remember(endpoint, null, verified: true);
             return match;
         }
         catch (HdcException ex)
@@ -972,20 +1090,14 @@ public partial class MainWindow
         string title = string.IsNullOrWhiteSpace(_lastInfo.Name) ? device.Serial : _lastInfo.Name;
         _store.Remember(device.Serial, title);
 
-        // 虚拟屏窗口的出生位置：有竖屏记忆就用记忆（关窗时记下的那一位子），
-        // 没有就照主窗口现在的位置与大小长出来 —— 用户要求「连上后窗口就是主窗口那么大」。
-        AppSettings settings = AppSettings.Current;
-        Rect initial = settings.HasMirrorPortrait
-            ? new Rect(
-                settings.MirrorPortraitLeft,
-                settings.MirrorPortraitTop,
-                settings.MirrorPortraitWidth,
-                settings.MirrorPortraitHeight)
-            : new Rect(
-                Left,
-                Top,
-                Math.Max(320d, ActualWidth > 1d ? ActualWidth : Width),
-                Math.Max(480d, ActualHeight > 1d ? ActualHeight : Height));
+        // 出生位置永远跟随主窗口此刻的位置与大小 —— 用户要求「我把主窗挪到哪，
+        // 手机窗就在哪出现」，所以不再用上次关窗时记下的坐标（那正是跑偏的原因）。
+        // 高度由 MirrorWindow 里的 FitWindowToAspect 按手机比例重算，这里只给个初值。
+        Rect initial = new Rect(
+            Left,
+            Top,
+            Math.Max(320d, ActualWidth > 1d ? ActualWidth : Width),
+            Math.Max(480d, ActualHeight > 1d ? ActualHeight : Height));
 
         var window = new MirrorWindow(device, title, _log)
         {
@@ -1020,17 +1132,19 @@ public partial class MainWindow
     /// <summary>
     /// 设置分栏就地切换：设备管理 / 通用设置 / 按键映射 / 音画与音频 都显示在手机屏这块区域里，不弹新窗口。
     /// </summary>
-    /// <param name="key">devices / general / keys / av。</param>
+    /// <param name="key">devices / general / keys / video / audio。</param>
     private void ShowSettingsTab(string key)
     {
         SettingsTabs.Visibility = Visibility.Visible;
 
-        if (key is "general" or "av" or "keys")
+        if (key is "general" or "av" or "audio" or "video" or "keys")
         {
             Type pageType = key switch
             {
                 "keys" => typeof(KeysPage),
                 "av" => typeof(AvPage),
+                "audio" => typeof(AvPage),
+                "video" => typeof(VideoPage),
                 _ => typeof(SettingsPage),
             };
             ShowContentPage(GetOrCreatePage(pageType));
@@ -1061,7 +1175,8 @@ public partial class MainWindow
             ("devices", TabDevicesButton),
             ("general", TabGeneralButton),
             ("keys", TabKeysButton),
-            ("av", TabAvButton),
+            ("video", TabVideoButton),
+            ("audio", TabAudioButton),
         };
 
         foreach ((string tabKey, Wpf.Ui.Controls.Button button) in tabs)
@@ -1089,7 +1204,7 @@ public partial class MainWindow
         }
         else
         {
-            DevicePicker.SelectedIndex = 0;
+            SelectDevice(Devices.Count > 0 ? Devices[0] : null);
         }
 
         ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_DeviceRemovedFormat, endpoint));
@@ -1137,39 +1252,6 @@ public partial class MainWindow
         OpenMirrorWindow(_infoDevice);
     }
 
-    /// <summary>从未连接过设备时，手机屏中央那个手动连接表单的「连接」。</summary>
-    private async void OnManualConnectFromScreenClick(object sender, RoutedEventArgs e)
-    {
-        string ip = (ManualIpBox.Text ?? string.Empty).Trim();
-        string port = (ManualPortBox.Text ?? string.Empty).Trim();
-        if (ip.Length == 0 || port.Length == 0)
-        {
-            ShowStatus(Strings.Status_ManualNeedAddress);
-            return;
-        }
-
-        string endpoint = ip.Contains(':') ? ip : ip + ":" + port;
-        ManualPanel.IsEnabled = false;
-        try
-        {
-            await ConnectEndpointAsync(endpoint).ConfigureAwait(true);
-        }
-        finally
-        {
-            ManualPanel.IsEnabled = true;
-        }
-    }
-
-    /// <summary>还没记住过任何设备时，把手动连接表单摆在手机屏中央；记住过就收起。</summary>
-    private void UpdateManualPanel()
-    {
-        bool anySaved = _store.Load().Count > 0;
-        ManualPanel.Visibility = anySaved ? Visibility.Collapsed : Visibility.Visible;
-        if (!anySaved)
-        {
-            EmptyState.Visibility = Visibility.Collapsed;
-        }
-    }
 
     private void OnMenuDevicesClick(object sender, RoutedEventArgs e) => ShowManagePage();
 
@@ -1198,7 +1280,7 @@ public partial class MainWindow
     /// <summary>设置页「立即抓取」调这里：抓一张并把结果说给人听。</summary>
     internal async Task<string> CaptureLockScreenNowAsync()
     {
-        string? endpoint = (DevicePicker.SelectedItem as DeviceEntry)?.Endpoint;
+        string? endpoint = Selected?.Endpoint;
         if (string.IsNullOrWhiteSpace(endpoint))
         {
             return Strings.Settings_LockShotNoDevice;
@@ -1299,19 +1381,18 @@ public partial class MainWindow
         _lastInfo = info;
 
         // 读到真实名称后回填下拉条目，手机上改了名也能立刻看到。
-        if (DevicePicker.SelectedItem is DeviceEntry selected
+        if (Selected is DeviceEntry selected
             && string.Equals(selected.Endpoint, device.Serial, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(info.Name))
         {
             selected.Name = info.Name;
-            DevicePicker.Text = info.Name;
         }
 
         // 设备可用就按分钟抓一张画面，给未连接时的毛玻璃背景用。
         EnsureLockCapture(device.Serial);
 
         // 读到名称后把显示名写进本机设备清单，避免「设备管理」里只显示 IP:端口。
-        _hints.Remember(device.Serial, info.Name);
+        _hints.Remember(device.Serial, info.Name, verified: true);
         if (!string.IsNullOrWhiteSpace(info.Name))
         {
             _store.Remember(device.Serial, info.Name);
@@ -1400,6 +1481,75 @@ public partial class MainWindow
     /// <summary>把画面层裁成与 <see cref="PhoneFrame"/> 一致的圆角。</summary>
     private void OnMenuAboutClick(object sender, RoutedEventArgs e) => ShowPage(typeof(AboutPage), Strings.Nav_About);
 
+    /// <summary>当前展开的一级菜单。WPF 会在「按下」之前先把已展开的菜单关掉，
+    /// 所以还要配合 _topClosedTicks 识别「这次按下就是把刚关掉的那个再点一下」。</summary>
+    private MenuItem? _openTopMenu;
+
+    /// <summary>上一次一级菜单被关掉的时刻，用于识别「同一个点击的关闭 + 按下」。</summary>
+    private long _topClosedTicks;
+
+    /// <summary>登记三个一级菜单，用打开/关闭事件维护真实状态（不靠 IsSubmenuOpen 猜）。</summary>
+    private void RegisterTopMenus()
+    {
+        foreach (MenuItem item in new[] { MenuApp, MenuSettings, MenuHelp })
+        {
+            item.SubmenuOpened += (s, _) => _openTopMenu = (MenuItem)s;
+            item.SubmenuClosed += (s, _) =>
+            {
+                _topClosedTicks = Environment.TickCount64;
+                if (ReferenceEquals(_openTopMenu, s))
+                {
+                    _openTopMenu = null;
+                }
+            };
+        }
+    }
+
+    /// <summary>一级菜单点击：没开就开，已开就收（WPF 默认「按下先关再开」，看起来永远只会重新弹出）。</summary>
+    private void OnTopMenuPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not MenuItem item || !item.HasItems)
+        {
+            return;
+        }
+
+        // 关键：Popup 里的子项点击会「隧道」经过这个一级项，若一并处理，子项就永远点不动。
+        // 用几何位置区分：点在自身标题条之外（子菜单区域内）就直接放行。
+        Point local = e.GetPosition(item);
+        if (local.X < 0d || local.X > item.ActualWidth || local.Y < 0d || local.Y > item.ActualHeight)
+        {
+            return;
+        }
+
+        // 刚被这次按下关掉（<300ms）也算「本来是开着的」→ 这一次就保持收起。
+        bool wasOpen = ReferenceEquals(_openTopMenu, item)
+            || Environment.TickCount64 - _topClosedTicks < 300L;
+
+        e.Handled = true;
+
+        foreach (MenuItem other in new[] { MenuApp, MenuSettings, MenuHelp })
+        {
+            if (!ReferenceEquals(other, item) && other.IsSubmenuOpen)
+            {
+                other.IsSubmenuOpen = false;
+            }
+        }
+
+        item.IsSubmenuOpen = !wasOpen;
+        if (!wasOpen)
+        {
+            _openTopMenu = item;
+        }
+    }
+
+    /// <summary>「设置」下拉里的四项：直接跳到对应的设置分栏。</summary>
+    private void OnMenuSettingsTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string key })
+        {
+            ShowSettingsTab(key);
+        }
+    }
     private void OnMenuSettingsClick(object sender, RoutedEventArgs e) => ShowSettingsTab("general");
 
     private void OnMenuKeysClick(object sender, RoutedEventArgs e) => ShowSettingsTab("keys");
@@ -1657,6 +1807,8 @@ public sealed class DeviceEntry : INotifyPropertyChanged
 {
     private string _name;
 
+    private bool _isCurrent;
+
     public DeviceEntry(HdcDevice device)
     {
         Device = device;
@@ -1704,11 +1856,36 @@ public sealed class DeviceEntry : INotifyPropertyChanged
             _name = value;
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(ShowEndpoint));
         }
     }
 
     /// <summary>一行显示文本，兼容屏幕阅读器与调试输出。</summary>
     public string DisplayText => string.IsNullOrWhiteSpace(_name) ? Endpoint ?? string.Empty : _name;
+
+    /// <summary>名称和端点是否不同：相同时右侧不再重复显示同一串地址。</summary>
+    public bool ShowEndpoint => !string.IsNullOrWhiteSpace(Endpoint)
+        && !string.Equals(DisplayText, Endpoint, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>是否是设备栏当前选中的那台：下拉项据此决定显示「连接」还是「忘记」。</summary>
+    public bool IsCurrent
+    {
+        get => _isCurrent;
+        set
+        {
+            if (_isCurrent == value)
+            {
+                return;
+            }
+
+            _isCurrent = value;
+            OnPropertyChanged(nameof(IsCurrent));
+            OnPropertyChanged(nameof(IsNotCurrent));
+        }
+    }
+
+    /// <summary><see cref="IsCurrent"/> 的反面，给 XAML 的可见性绑定用。</summary>
+    public bool IsNotCurrent => !_isCurrent;
 
     /// <summary>下拉框折叠时显示设备名，屏幕阅读器读到的也是它而不是类型名。</summary>
     /// <returns>显示文本。</returns>

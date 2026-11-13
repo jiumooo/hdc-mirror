@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\donate\*.png" />
   </ItemGroup>
 
   <!-- hdc 随程序分发：构建后落在 <输出>\tools\hdc.exe，HdcLocator 会优先探测这里。

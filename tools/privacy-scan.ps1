@@ -62,7 +62,8 @@ $TextExt = @(
 $BareNames = @('.gitignore', '.gitattributes', '.editorconfig', '.npmrc')
 $ExcludeGlobs = @(
     '\.git\*', '*\obj\*', '*\bin\*', '*.vs\*', '*\node_modules\*',
-    '_probe\*', 'docs\reference\*'
+    '_probe\*', 'docs\reference\*',
+    'tools\pack\dist\*', 'tools\pack\stage\*', 'tools\pack\dist-backup*\*', 'tools\pack\_probe-logs-raw\*'
 )
 $ExcludeSelf = @('tools\privacy-scan.ps1', 'tools\pre-push-check.ps1')
 

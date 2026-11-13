@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -16,6 +16,9 @@ namespace HdcMirror.App.Audio;
 /// </summary>
 public static class AudioVolumeService
 {
+    /// <summary>MMDeviceEnumerator 的 CLSID；用 CLSID 现建实例，避免与 AudioDeviceService 里的同名嵌套 coclass 串味。</summary>
+    private static readonly Guid MmDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
+
     /// <summary>把指定进程的音频会话音量设为 <paramref name="level"/>（0~1）。</summary>
     /// <param name="processId">音频接收子进程的 PID。</param>
     /// <param name="level">目标音量，0 = 静音，1 = 100%。</param>
@@ -114,7 +117,7 @@ public static class AudioVolumeService
 
     private static ISimpleAudioVolume[] Sessions()
     {
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+        var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(MmDeviceEnumeratorClsid)!)!;
         enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice device);
         Guid iid = typeof(IAudioSessionManager2).GUID;
         device.Activate(ref iid, 23, IntPtr.Zero, out object managerObject);
@@ -142,11 +145,6 @@ public static class AudioVolumeService
 
     // ───────────────────────── COM 声明 ─────────────────────────
 
-    [ComImport]
-    [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    private class MMDeviceEnumeratorComObject
-    {
-    }
 
     [ComImport]
     [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
