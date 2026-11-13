@@ -1,8 +1,8 @@
-# 鸿蒙手机无线控制 · HdcMirror
+﻿# 鸿蒙手机无线控制 · HdcMirror
 
 在 Windows 上实时镜像并操控 HarmonyOS NEXT 手机。手机端**零安装**，只用系统自带的 hdc 无线调试。
 
-当前版本 **0.2.1** · Windows 10/11 · .NET 8 桌面运行时
+当前版本 **0.2.2** · Windows 10/11 · .NET 8 桌面运行时
 
 ---
 
@@ -30,13 +30,27 @@
 
 ## 四、安装
 
-**双击 `HdcMirror-Setup.exe`** 即可，安装界面里能直接改安装位置：
+安装包有两个，按机器情况选一个双击即可：
 
-- 默认位置 `C:\HdcMirror`，可以直接把盘符改掉（例如改成 `D:\Programs`），也可以点「浏览…」选目录
-- 程序会自动在你选的目录下补 `HdcMirror` 子文件夹：填 `D:\Programs` → 实际装到 `D:\Programs\HdcMirror`
-- 装完可以直接勾启动
+| 安装包 | 大小 | 前提 | 适合谁 |
+| --- | --- | --- | --- |
+| `HdcMirror-Setup-NeedsDotNet8.exe` | 20 MB | **电脑已装 .NET 8 桌面运行时** | 大多数已装 .NET 的机器；体积最小 |
+| **`HdcMirror-Setup-WithRuntime.exe`** | 144 MB | 无（运行时打包在内） | **没装 .NET、也不想装**：双击即装，装完直接能用 |
 
-想完全静默（脚本/批量部署）：
+> ⚠️ `HdcMirror-Setup-NeedsDotNet8.exe` 本身是 .NET 程序：机器上没有 .NET 8 桌面运行时，双击会直接提示缺少运行时、打不开。不确定就先看「设置 → 应用 → 已安装的应用」里有没有 *Microsoft .NET 8 Desktop Runtime*，没有就下 144 MB 那个。
+
+两个安装包的界面、校验、卸载方式完全一致。
+安装界面里可以：
+
+- 选界面语言（简体中文 / English），整个界面跟着切换
+- 阅读《用户说明与免责声明》，勾选同意后才能点「安装」
+- 改安装位置：默认 `C:\HdcMirror`，可以直接改盘符（例如改成 `D:\Programs`），也能点「浏览…」选目录
+
+安装路径会做校验，以下情况安装按钮直接置灰并说明原因：磁盘根、`Windows`、`Program Files`、`%LOCALAPPDATA%`、`%APPDATA%`、`%TEMP%`、用户目录本身、超过 170 字符的路径、目标目录非空且不是本程序、无写入权限。
+
+程序会自动在你选的目录下补 `HdcMirror` 子文件夹：填 `D:\Programs` → 实际装到 `D:\Programs\HdcMirror`。
+
+想完全静默（脚本/批量部署，同样受上述校验约束）：
 
 ```
 HdcMirror-Setup.exe --installto "D:\Programs\HdcMirror" --silent
@@ -48,7 +62,17 @@ HdcMirror-Setup.exe --installto "D:\Programs\HdcMirror" --silent
 
 安装包自带检测：缺 .NET 8 桌面运行时，会弹窗问是否下载安装，点「是」后同一次安装继续。离线/内网机器可先跑 `HdcMirror-preinstall-check.cmd` 自查缺什么、去哪儿下载。
 
-## 五、连接手机
+## 五、卸载
+
+安装目录根里有 **`卸载 HdcMirror.exe`**（独立程序，不经过命令行）。双击后：
+
+1. 弹确认框，列出将删除的内容（程序本体、快捷方式、安装目录下的 `data\`、注册表项 `HKCU\Software\HdcMirror`），默认停在「否」
+2. 点「是」后是一个进度窗口，逐步显示：结束进程 → 调起 Velopack 卸载 → 等它清目录 → 清理安装目录 → 清注册表 → 清快捷方式
+3. 结束时报告结果；若仍有残留会逐条列出
+
+安全校验（不满足就拒绝运行，一个文件都不删）：安装根只从「EXE 所在目录」或注册表 `InstallLocation` 取；目录名必须是 `HdcMirror`；必须有 `Update.exe` 与 `HdcMirror.exe`；且不能是 `%LOCALAPPDATA%`、`%APPDATA%`、用户目录、`Windows`、`Program Files`、`%TEMP%` 本身。
+
+## 六、连接手机
 
 1. 手机：设置 → 系统 → 开发者选项 → 打开「无线调试」
 2. 电脑：打开 HdcMirror → 点「扫描」
@@ -58,7 +82,7 @@ HdcMirror-Setup.exe --installto "D:\Programs\HdcMirror" --silent
 
 USB 直连同样可用：插上线，设备列表里会以序列号出现，标记为「有线」。
 
-## 六、操作方式
+## 七、操作方式
 
 | 操作 | 效果 |
 | --- | --- |
@@ -71,7 +95,7 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 | 底部三键 | 返回 / 主桌面 / 多任务，鼠标靠近窗口底部才滑出 |
 | 按键映射 | 设置 → 按键映射，自己录制组合键并指定动作 |
 
-## 七、画面与音频
+## 八、画面与音频
 
 **画质**：设置 → 画面，四档预设（超清 24 Mbps / 高清 16 / 均衡 8 / 流畅 4+30Hz），也可单独调帧率与码率；两者联动，手动改动会显示为「自定义」。帧率「自动」表示跟随手机当前刷新率。
 
@@ -82,7 +106,7 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 - 手机控制中心「投射音频」里也能看到这台电脑，选中同样生效
 - 手机侧音量提供 0/100 两档是蓝牙接收端能力限制，不是软件问题，中间音量用电脑侧调
 
-## 八、设置项
+## 九、设置项
 
 | 页签 | 内容 |
 | --- | --- |
@@ -92,7 +116,7 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 | 画面 | 画质预设、帧率、码率、锁屏画面 |
 | 音频 | 开始/停止接收、输出设备、连接后自动开启 |
 
-## 九、数据存放
+## 十、数据存放
 
 **全部在安装目录下**：`<安装根>\data`
 
@@ -101,6 +125,7 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 ├─ current\            程序本体（升级时整体替换）
 ├─ packages\           安装包缓存
 ├─ Update.exe          Velopack 更新器
+├─ 卸载 HdcMirror.exe  卸载入口
 └─ data\               用户数据
    ├─ settings.json    设置
    ├─ devices.json     记住的设备
@@ -113,29 +138,33 @@ USB 直连同样可用：插上线，设备列表里会以序列号出现，标�
 - **卸载**：安装目录整体删除，数据一并清掉
 - 从旧版本（数据在 `%APPDATA%\HdcMirror`）升级时，首次启动会把设置、设备、日志搬过来，只补缺不覆盖
 
-## 十、仓库结构
+## 十一、仓库结构
 
 ```
 src/
-  HdcMirror.Core/      设备、投屏通道、输入通道、设置与数据路径
-  HdcMirror.Decode/    H.264 解码（FFmpeg 绑定）
-  HdcMirror.App/       WPF 界面、镜像窗、音频、更新
-  HdcMirror.Audio/     音频接收子进程（A2DP Sink）
-  HdcMirror.SelfTest/  离线自检（不需要手机）
-native/ffmpeg/win64/   极简 FFmpeg 动态库（LGPL 2.1+，可替换）
-tools/                 打包、热更新、隐私扫描、发布前检查
-docs/                  设计文档与缺陷记录
+  HdcMirror.Core/        设备、投屏通道、输入通道、设置与数据路径
+  HdcMirror.Decode/      H.264 解码（FFmpeg 绑定）
+  HdcMirror.App/         WPF 界面、镜像窗、音频、更新
+  HdcMirror.Audio/       音频接收子进程（A2DP Sink）
+  HdcMirror.Installer/   图形安装器（内嵌载荷，带路径校验）
+  HdcMirror.Uninstaller/ 独立卸载器（安全校验）
+  HdcMirror.SelfTest/    离线自检（不需要手机）
+native/ffmpeg/win64/     极简 FFmpeg 动态库（LGPL 2.1+，可替换）
+tools/                   打包、热更新、隐私扫描、发布前检查
+docs/                    设计文档与缺陷记录
 ```
 
-## 十一、从源码构建
+## 十二、从源码构建
 
 ```powershell
 C:\dotnet8\dotnet.exe build src\HdcMirror.sln -c Debug
 C:\dotnet8\dotnet.exe run --project src\HdcMirror.SelfTest\HdcMirror.SelfTest.csproj
-powershell -File tools\pack\build-release.ps1
+powershell -File tools\pack\build-release.ps1          # 出安装包与升级包
+C:\dotnet8\dotnet.exe publish src\HdcMirror.Uninstaller\HdcMirror.Uninstaller.csproj -c Release -o src\HdcMirror.Uninstaller\publish
+C:\dotnet8\dotnet.exe publish src\HdcMirror.Installer\HdcMirror.Installer.csproj -c Release -r win-x64 -o src\HdcMirror.Installer\publish
 ```
 
-## 十二、常见问题
+## 十三、常见问题
 
 **扫不到手机**：确认手机与电脑同网段、无线调试开着；换过端口时等深度扫描跑完；仍不行在「设备管理」手填。
 
@@ -149,10 +178,11 @@ powershell -File tools\pack\build-release.ps1
 
 **界面卡「未响应」**：拖边框过快的旧问题已修（尺寸变更去抖），如仍出现，日志在 `data\logs`。
 
-## 十三、版本历史
+## 十四、版本历史
 
 | 版本 | 日期 | 要点 |
 | --- | --- | --- |
+| 0.2.2 | 2026-11-14 | 卸载器改为独立 EXE（`卸载 HdcMirror.exe`，带安装根与目录安全校验）；安装器新增路径校验，静默与界面安装一致；修掉旧卸载脚本把 `%TEMP%` 的上一级当安装根、进而误删用户目录的缺陷；移除早期试验工程与设计过程图 |
 | 0.2.1 | 2026-11-14 | 安装程序自带位置选择界面（默认 `C:\HdcMirror`，可改盘/浏览）；关于页与 README 写明支持 HarmonyOS NEXT 5.0.0（API 12）及以上、已在 API 26 实测 |
 | 0.2.0 | 2026-11-14 | 安装包支持自选安装位置；数据目录改到安装目录下 `data\`；关于页重做（仓库/反馈/许可三卡片）；设备管理移入设置菜单；取消 Ctrl+Q；镜像窗左下角固定显示连接方式与帧率；音频按钮按真实状态高亮、修掉「有声音却显示等待」 |
 | 0.1.1 | 2026-11-12 | 输入改走 `uitest` 注入，修掉点击无反应；转发清理改双端规格；删除触摸点调试功能；控制条重排、窗口按钮永不隐藏 |
@@ -160,12 +190,12 @@ powershell -File tools\pack\build-release.ps1
 | 0.0.9 | 2026-11-11 | 第一个功能完整版：镜像、操作、音频、启动更新、托盘、多设备 |
 | 0.0.1 | 2026-11-10 | 首次发布，打通投屏与基本操作 |
 
-## 十四、隐私与免责
+## 十五、隐私与免责
 
 **收集什么**：不收集。无遥测、无统计、无账号、无云端。
 
 **网络访问**：仅两类 —— 与本机手机之间的 hdc / 投屏通道（局域网或 USB），以及检查更新时访问 GitHub Release。
 
-**数据落在哪**：全部在安装目录下的 `data\`，见第九节；卸载即清除。
+**数据落在哪**：全部在安装目录下的 `data\`，见第十节；卸载即清除。
 
 **免责**：本项目为个人自用工具，与华为无隶属关系，未获其授权或认可。投屏与输入依赖手机系统自带的调试服务，系统更新可能使其失效。使用风险自负；如相关方有异议，将立即停止分发。

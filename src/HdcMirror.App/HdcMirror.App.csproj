@@ -36,8 +36,6 @@
     <None Include="tools\windows-x64\hdc.exe" Link="tools\hdc.exe" CopyToOutputDirectory="PreserveNewest" />
     <None Include="tools\windows-x64\libusb_shared.dll" Link="tools\libusb_shared.dll" CopyToOutputDirectory="PreserveNewest" />
     <!-- 卸载脚本随包发到程序目录（与 exe 平级），用户双击即可卸载并清数据/注册表 -->
-    <None Include="pack-extras\uninstall.ps1" Link="uninstall.ps1" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="pack-extras\卸载 HdcMirror.cmd" Link="卸载 HdcMirror.cmd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- 音频子进程 TFM 是 net8.0-windows10.0.19041.0，不能被 net8.0-windows 的工程直接引用；

@@ -98,3 +98,8 @@ tools/pack/dist-backup-selfcontained-*/
 tools/pack/_probe-logs-raw/
 tools/pack/probe-log-hdcprobe-*.txt
 _probe/
+
+# 发布附件与大构建产物（不进仓库，只走 Release 附件）
+tools/pack/release-*/
+tools/pack/dist-sc/
+src/HdcMirror.Installer/publish-full/

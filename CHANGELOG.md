@@ -1,6 +1,21 @@
 ﻿# 更新日志
 
-## 0.2.1 — 2026-11-14
+## 0.2.2 — 2026-11-14
+
+卸载器改成独立 EXE，安装与卸载共用同一套路径校验；清掉早期试验代码。
+
+### 卸载
+
+- 新增 `HdcMirror-Uninstall.exe`（`src/HdcMirror.Uninstaller`，单文件 913 KB，无控制台窗口）：双击弹确认框 → 结束进程 → 调 Velopack 卸载 → 清安装目录 → 清注册表与快捷方式 → 窗口内逐步打印结果
+- **安全校验**：安装根只从「EXE 所在目录」或注册表 `InstallLocation` 取；目录名必须是 `HdcMirror`、必须有 `Update.exe` 与 `HdcMirror.exe`、且不能是 `%LOCALAPPDATA%` / `%APPDATA%` / 用户目录 / Windows / Program Files / `%TEMP%` 本身，任何一条不满足就拒绝运行
+- 修复 0.2.1 的严重缺陷：旧的 `卸载 HdcMirror.cmd` + `uninstall.ps1` 被复制到 `%TEMP%` 后，用「脚本目录的上一级」推断安装根，在临时目录里算出 `%LOCALAPPDATA%` 并递归删除，会误删用户数据。脚本方式整体移除，改为 EXE + 显式安装根
+
+### 安装
+
+- 新增 `InstallPathGuard`：界面安装与 `--installto` 静默安装共用同一套校验 —— 拒绝磁盘根、系统目录、用户数据目录、临时目录、超过 170 字符的路径、非空且不是本程序的目录、无写入权限的目录
+- 界面上路径框即时校验：不合格时提示行变红说明原因，「安装」按钮置灰
+- 安装界面（语言选择 简体中文/English、用户说明与免责声明、路径选择与浏览、完成后的启动询问）首次进仓库
+- 新增**两个安装包**：`HdcMirror-Setup-NeedsDotNet8.exe`（轻量，20 MB，**需要系统已装 .NET 8 桌面运行时**，否则双击会提示缺少运行时）与 `HdcMirror-Setup-WithRuntime.exe`（完整，144 MB，运行时打包在内，**不需要预装 .NET**）
 
 安装程序自己带位置选择，支持和兼容范围写明白。
 

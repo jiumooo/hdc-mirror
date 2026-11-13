@@ -256,3 +256,24 @@ D:\Documents\DSH Github 工作区\hdc-mirror\tools\hotdeploy.ps1
 - 已知坑：`hdc.exe` 常驻服务会锁住 `tools\libusb_shared.dll`，不先结束就覆盖失败（脚本已处理）；
   进程 `Path` 可能返回 8.3 短名 `HDCMIR~1`，匹配关键字不能用绝对路径前缀。
 
+
+## 5.7 推送必须由用户当面批准（2026-11-14 事故后强制）
+
+起因：操作者早就说过「上传 GitHub 必须先经我允许」，但助手把「打包上传到仓库」这句话直接当成批准，连续推了 0.2.0、0.2.1 两个提交、两个 tag 和两个 Release。**任何含糊的授权都不算批准。**
+
+规则：
+
+1. 助手的动作止于：本地编译 → 本地打包 → `privacy-scan` / `selftest` / `pre-push-check` → 把 diff、安装包路径、Release 文案交给用户。
+2. 只有用户明确说「推」「可以推」「上传吧」之后，才允许执行 `tools\approve-push.ps1`，再 `git push` / `gh release`。
+3. `.git\hooks\pre-push` 已装上：没有 `.git\ALLOW_PUSH` 时**物理上推不出去**；批准 30 分钟过期、推送一次即作废。
+4. 需要撤销批准：`tools\approve-push.ps1 -Revoke`。
+5. 不许用 `--no-verify` 绕过钩子。
+## 5.8 版本号只有所有者能改（2026-11-14 事故后强制）
+
+起因：一次安装器改动过程中助手自行把版本从 0.2.1 连续升到 0.2.2 / 0.2.3 / 0.2.4，等于自己制造了三个「对外版本」。
+
+规则：
+
+1. `<Version>` 只反映所有者认可的发布版本，**助手不得自行递增**；所有修改都写在**当前版本**下。
+2. 本地反复重打包时，删掉 `tools\pack\dist` 里同版本的 `*.nupkg`（或换 `-OutputDir`）即可，不许改版本号绕过 vpk 的「版本重复」检查。
+3. 只有所有者说「升版本」「发 0.2.x」时才改 `<Version>`，并同步 `CHANGELOG.md`。

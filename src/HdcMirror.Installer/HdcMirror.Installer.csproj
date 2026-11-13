@@ -18,10 +18,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 真正的 Velopack 安装包，编译时嵌进本安装程序，发布出去只有一个 exe -->
     <EmbeddedResource Include="..\..\tools\pack\dist\HdcMirror-win-Setup.exe"
                       Link="payload\HdcMirror-win-Setup.exe"
                       LogicalName="payload.setup.exe" />
+    <EmbeddedResource Include="..\HdcMirror.Uninstaller\publish\HdcMirror-Uninstall.exe"
+                      LogicalName="extras.uninstaller.exe" />
   </ItemGroup>
 
 </Project>
