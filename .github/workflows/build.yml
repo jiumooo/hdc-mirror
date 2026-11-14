@@ -1,0 +1,49 @@
+# 构建与隐私闸：每次推送到 main 或提 PR 时自动跑。
+# 只做两件事 —— 编译通过（0 警告 0 错误由 Directory.Build.props 的 TreatWarningsAsErrors 保证）、
+# 隐私与发布三闸通过。真机相关的验证无法在 CI 完成，仍需本机实测（见 CONTRIBUTING.md）。
+
+name: 构建与隐私闸
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 构建（Windows / .NET 8）
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 还原依赖
+        run: dotnet restore src/HdcMirror.sln
+
+      - name: 编译（警告即失败）
+        run: dotnet build src/HdcMirror.sln -c Debug --no-restore
+
+  privacy:
+    name: 隐私与发布闸
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 隐私扫描
+        shell: powershell
+        run: ./tools/privacy-scan.ps1
+
+      - name: 三闸总检（隐私 + 样本媒体 + 敏感文件）
+        shell: powershell
+        run: ./tools/pre-push-check.ps1

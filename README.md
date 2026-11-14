@@ -203,3 +203,19 @@ C:\dotnet8\dotnet.exe publish src\HdcMirror.Installer\HdcMirror.Installer.csproj
 **数据落在哪**：全部在安装目录下的 `data\`，见第十节；卸载即清除。
 
 **免责**：本项目为个人自用工具，与华为无隶属关系，未获其授权或认可。投屏与输入依赖手机系统自带的调试服务，系统更新可能使其失效。使用风险自负；如相关方有异议，将立即停止分发。
+
+## 十六、参与与规范
+
+本项目以 **MIT** 许可开源，第三方组件的许可见 `THIRD-PARTY-NOTICES.md`。
+
+| 文档 | 内容 |
+| --- | --- |
+| [`LICENSE`](LICENSE) | MIT 许可全文 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 构建命令、提交前必做的三项检查、代码与文档约定 |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 社区行为准则与举报渠道 |
+| [`SECURITY.md`](SECURITY.md) | 漏洞报告渠道，以及本工具的安全边界与风险面 |
+| [`ACCESSIBILITY.md`](ACCESSIBILITY.md) | 无障碍现状、已知限制与改进方向 |
+
+- **报缺陷 / 提功能**：用仓库的 Issue 模板，缺陷报告需附版本号、Windows 版本、连接方式与脱敏后的日志
+- **提 PR**：按 `.github/PULL_REQUEST_TEMPLATE.md` 填写；构建必须 0 警告 0 错误，`tools\pre-push-check.ps1` 退出码为 0
+- **隐私红线**：提交内容不得含真实设备地址、设备名、机型 SN、屏幕截图录屏与个人信息，详见 `CONTRIBUTING.md` 第六节

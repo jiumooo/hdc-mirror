@@ -1,0 +1,4 @@
+# 赞助入口：与程序「关于」页的「支持作者」一致，指向仓库内的收款码目录。
+# 只使用 custom，不声明 github sponsors（未开通时会出现无效按钮）。
+custom:
+  - https://github.com/jiumooo/hdc-mirror/tree/main/docs/assets/donate

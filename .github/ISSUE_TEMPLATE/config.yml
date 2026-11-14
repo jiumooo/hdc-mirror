@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题与常见故障
+    url: https://github.com/jiumooo/hdc-mirror/blob/main/README.md
+    about: 扫不到手机、点了没反应、没有声音、音频延迟等问题，先看这里
+  - name: 参与贡献与提交规范
+    url: https://github.com/jiumooo/hdc-mirror/blob/main/CONTRIBUTING.md
+    about: 构建命令、提交前必做的检查、代码与文档约定
+  - name: 报告安全漏洞
+    url: https://github.com/jiumooo/hdc-mirror/security/advisories/new
+    about: 安全问题请走私密通道，不要开公开 Issue
