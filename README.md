@@ -1,4 +1,4 @@
-# 鸿蒙手机无线控制 · HdcMirror
+﻿# 鸿蒙手机无线控制 · HdcMirror
 
 在 Windows 上实时镜像并操控 HarmonyOS NEXT 手机。手机端**零安装**，只用系统自带的 hdc 无线调试。
 
@@ -30,16 +30,15 @@
 
 ## 四、安装
 
-安装包有两个，按机器情况选一个双击即可：
-安装包有两个，按机器情况选一个双击即可：
+安装包有两个，按机器情况选一个双击即可（`<版本>` 是当前版本号，例如 `0.2.3`）：
 
 | 安装包 | 大小 | 前提 | 适合谁 |
 | --- | --- | --- | --- |
-| **`HdcMirror-Setup.exe`** | **26.4 MB** | **电脑已装 .NET 8 桌面运行时** | 已装 .NET 的机器；体积最小、启动最快 |
-| **`HdcMirror-Setup-Full.exe`** | **74.5 MB** | 无（内置官方 .NET 8 桌面运行时 55.7 MB） | 没装 .NET、也不想自己去下：双击即用 |
+| **`HdcMirror-Setup-<版本>.exe`** | **26.5 MB** | **电脑已装 .NET 8 桌面运行时** | 已装 .NET 的机器；体积最小、启动最快 |
+| **`HdcMirror-Setup-Full-<版本>.exe`** | **82.2 MB** | 无（内置官方 .NET 8 桌面运行时 55.7 MB） | 没装 .NET、也不想自己去下：双击即用 |
 
-> ⚠️ `HdcMirror-Setup.exe` 本身是 .NET 程序：机器上没有 .NET 8 桌面运行时，双击会提示缺少运行时、打不开。不确定就下 74.5 MB 的完整版。
-> 完整版是原生自解压壳：先查本机有没有 .NET 8 桌面运行时，缺才静默安装（需一次 UAC 管理员确认），装完立刻弹出同一个安装界面。
+> ⚠️ `HdcMirror-Setup-<版本>.exe` 本身是 .NET 程序：机器上没有 .NET 8 桌面运行时，双击会提示缺少运行时、打不开。不确定就下 82.2 MB 的完整版。
+> 完整版把官方运行时安装器一起打进包里：先查本机有没有 .NET 8 桌面运行时，缺才静默安装（需一次 UAC 管理员确认），装完立刻弹出同一个安装界面。
 
 两个安装包的界面、校验、卸载方式完全一致。
 安装界面里可以：
@@ -55,10 +54,11 @@
 想完全静默（脚本/批量部署，同样受上述校验约束）：
 
 ```
-HdcMirror-Setup.exe --installto "D:\Programs\HdcMirror" --silent
+HdcMirror-Setup-<版本>.exe --installto "D:\Programs\HdcMirror" --silent
 ```
 
 > 安装界面由本项目自带（`src/HdcMirror.Installer`），内嵌官方 Velopack 安装载荷；`HdcMirror-win-Setup.exe` 保留给脚本与更新流程使用。
+> 两个安装包由 `tools\pack\build-installers.ps1` 一次生成，文件名自动带当前版本号。
 
 ### 缺运行时会怎样
 
@@ -161,10 +161,12 @@ docs/                    设计文档与缺陷记录
 ```powershell
 C:\dotnet8\dotnet.exe build src\HdcMirror.sln -c Debug
 C:\dotnet8\dotnet.exe run --project src\HdcMirror.SelfTest\HdcMirror.SelfTest.csproj
-powershell -File tools\pack\build-release.ps1          # 出安装包与升级包
+powershell -File tools\pack\build-release.ps1          # 出 Velopack 载荷与升级包
 C:\dotnet8\dotnet.exe publish src\HdcMirror.Uninstaller\HdcMirror.Uninstaller.csproj -c Release -o src\HdcMirror.Uninstaller\publish
-C:\dotnet8\dotnet.exe publish src\HdcMirror.Installer\HdcMirror.Installer.csproj -c Release -r win-x64 -o src\HdcMirror.Installer\publish
+powershell -File tools\pack\build-installers.ps1       # 出两个安装包（名字自动带版本号）
 ```
+
+> 顺序不能反：`build-installers.ps1` 要把 `build-release.ps1` 产出的 `HdcMirror-win-Setup.exe` 嵌进安装器里。
 
 ## 十三、常见问题
 
