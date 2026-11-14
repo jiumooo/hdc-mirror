@@ -1,6 +1,12 @@
-﻿# 更新日志
+# 更新日志
 
 ## 0.2.2 — 2026-11-14
+
+### 安装包
+
+- 拆成两个：`HdcMirror-Setup.exe`（26.4 MB，需本机已装 .NET 8 桌面运行时）与 `HdcMirror-Setup-Full.exe`（74.5 MB，内置官方 .NET 8 桌面运行时 55.7 MB，缺才静默安装）。
+- 两个包都含音频子进程；此前 0.2.x 打包只挂 `AfterTargets="Build"`，`dotnet publish` 不带 `audio\`，导致安装版没有声音。
+- 完整版为原生 IExpress 自解压壳（不依赖 .NET 即可启动），里面仍是同一个 WinForms 安装界面，可选安装位置。
 
 卸载器改成独立 EXE，安装与卸载共用同一套路径校验；清掉早期试验代码。
 

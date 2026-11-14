@@ -23,6 +23,9 @@
                       LogicalName="payload.setup.exe" />
     <EmbeddedResource Include="..\HdcMirror.Uninstaller\publish\HdcMirror-Uninstall.exe"
                       LogicalName="extras.uninstaller.exe" />
+    <EmbeddedResource Include="..\..\tools\pack\prereq\windowsdesktop-runtime-win-x64.exe"
+                      LogicalName="payload.runtime.exe"
+                      Condition="'$(IncludeRuntime)' == 'true'" />
   </ItemGroup>
 
 </Project>

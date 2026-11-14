@@ -18,7 +18,8 @@
 param(
     [switch]$Release,
     [switch]$NoStart,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [string]$InstallTo = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +30,21 @@ $dotnet  = 'C:\dotnet8\dotnet.exe'
 $config  = if ($Release) { 'Release' } else { 'Debug' }
 $proj    = Join-Path $repo 'src\HdcMirror.App\HdcMirror.App.csproj'
 $binDir  = Join-Path $repo "src\HdcMirror.App\bin\$config\net8.0-windows"
-$install = Join-Path $env:LOCALAPPDATA 'HdcMirror\current'
+# Resolve the install root: -InstallTo > registry InstallLocation > legacy default.
+# Previously this was hardcoded to %LOCALAPPDATA%\HdcMirror\current, so an install
+# to a custom folder (for example D:\1A-Ruanjain\HdcMirror) never got hot updates.
+$installRoot = $null
+if ($InstallTo) { $installRoot = $InstallTo }
+if (-not $installRoot) {
+  $regKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HdcMirror'
+  if (Test-Path $regKey) {
+    $loc = (Get-ItemProperty $regKey -ErrorAction SilentlyContinue).InstallLocation
+    if ($loc -and (Test-Path (Join-Path $loc 'Update.exe'))) { $installRoot = $loc }
+  }
+}
+if (-not $installRoot) { $installRoot = Join-Path $env:LOCALAPPDATA 'HdcMirror' }
+$install = Join-Path $installRoot 'current'
+Write-Host "   安装根：$installRoot"
 $exe     = Join-Path $install 'HdcMirror.exe'
 
 Write-Host '▶ 热更新开始' -ForegroundColor Cyan

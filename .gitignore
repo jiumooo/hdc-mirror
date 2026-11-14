@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 #  HdcMirror（鸿蒙手机无线控制）仓库忽略规则
 #  隐私相关条目见 RULES.md「隐私红线」；改动本文件前请先读那一节。
 # ─────────────────────────────────────────────────────────────────────────────
@@ -102,4 +102,12 @@ _probe/
 # 发布附件与大构建产物（不进仓库，只走 Release 附件）
 tools/pack/release-*/
 tools/pack/dist-sc/
+src/HdcMirror.Installer/publish-full/
+
+# 离线运行时安装器（55 MB，构建时按需下载，不入库）
+tools/pack/prereq/
+
+# 安装器发布产物（体积大，按需本地构建）
+src/HdcMirror.Installer/publish/
+src/HdcMirror.Installer/publish-sc/
 src/HdcMirror.Installer/publish-full/

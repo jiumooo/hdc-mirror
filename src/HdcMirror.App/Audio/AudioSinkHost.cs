@@ -132,9 +132,12 @@ public sealed class AudioSinkHost : IDisposable
                 StandardErrorEncoding = System.Text.Encoding.UTF8,
             };
 
-            // 自包含安装时程序目录里就有整套 .NET 运行时。让音频子进程也用它，
-            // 这样 audio\ 里只需要放框架依赖版产物，不必再背一份 90 MB 的运行时。
-            startInfo.Environment["DOTNET_ROOT"] = AppContext.BaseDirectory;
+            // 只有自包含安装时程序目录里才有 hostfxr.dll。框架依赖安装若也设 DOTNET_ROOT，
+            // apphost 会去这个目录找运行时、找不到就直接退出（表现为子进程秒退、状态一直 Starting）。
+            if (System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "hostfxr.dll")))
+            {
+                startInfo.Environment["DOTNET_ROOT"] = AppContext.BaseDirectory;
+            }
 
             Process process = new() { StartInfo = startInfo, EnableRaisingEvents = true };
             process.OutputDataReceived += OnOutputLine;

@@ -39,6 +39,51 @@ internal static class Program
     }
 
     /// <summary>解出内嵌的 Velopack 载荷并按 --installto 安装。</summary>
+    /// <summary>完整安装包内置离线运行时安装器；本机缺 .NET 8 桌面运行时先装它（需要一次管理员权限）。</summary>
+    private static bool EnsureRuntime()
+    {
+        if (!HasEmbeddedRuntime() || HasDesktopRuntime8())
+        {
+            return true;
+        }
+
+        string installer = Extract("payload.runtime.exe", "HDCM-runtime-");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = installer,
+            Arguments = "/install /quiet /norestart",
+            UseShellExecute = true,
+            Verb = "runas",
+        };
+
+        try
+        {
+            using Process process = Process.Start(startInfo)!;
+            process.WaitForExit();
+            return process.ExitCode == 0 || process.ExitCode == 3010 || HasDesktopRuntime8();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasEmbeddedRuntime()
+    {
+        return typeof(Program).Assembly.GetManifestResourceNames().Any(n => n == "payload.runtime.exe");
+    }
+
+    private static bool HasDesktopRuntime8()
+    {
+        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "shared", "Microsoft.WindowsDesktop.App");
+        if (!Directory.Exists(root))
+        {
+            return false;
+        }
+
+        return Directory.GetDirectories(root).Any(d => Path.GetFileName(d).StartsWith("8.", StringComparison.Ordinal));
+    }
+
     internal static int RunInstaller(string targetDirectory)
     {
         string directory = NormalizeDirectory(targetDirectory);
@@ -49,6 +94,11 @@ internal static class Program
         catch (Exception)
         {
             return 1;
+        }
+
+        if (!EnsureRuntime())
+        {
+            return 2;
         }
 
         string payload = Extract("payload.setup.exe", "HDCM-payload-");
