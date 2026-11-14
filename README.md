@@ -34,10 +34,10 @@
 
 | 安装包 | 大小 | 前提 | 适合谁 |
 | --- | --- | --- | --- |
-| `HdcMirror-Setup-NeedsDotNet8.exe` | 20 MB | **电脑已装 .NET 8 桌面运行时** | 大多数已装 .NET 的机器；体积最小 |
-| **`HdcMirror-Setup-WithRuntime.exe`** | 144 MB | 无（运行时打包在内） | **没装 .NET、也不想装**：双击即装，装完直接能用 |
+| `HdcMirror-Setup-NeedsDotNet8.exe` | 26 MB | **电脑已装 .NET 8 桌面运行时** | 大多数已装 .NET 的机器；体积最小 |
+| **`HdcMirror-Setup-WithRuntime.exe`** | 151 MB | 无（运行时打包在内） | **没装 .NET、也不想装**：双击即装，装完直接能用 |
 
-> ⚠️ `HdcMirror-Setup-NeedsDotNet8.exe` 本身是 .NET 程序：机器上没有 .NET 8 桌面运行时，双击会直接提示缺少运行时、打不开。不确定就先看「设置 → 应用 → 已安装的应用」里有没有 *Microsoft .NET 8 Desktop Runtime*，没有就下 144 MB 那个。
+> ⚠️ `HdcMirror-Setup-NeedsDotNet8.exe` 本身是 .NET 程序：机器上没有 .NET 8 桌面运行时，双击会直接提示缺少运行时、打不开。不确定就先看「设置 → 应用 → 已安装的应用」里有没有 *Microsoft .NET 8 Desktop Runtime*，没有就下 151 MB 那个。
 
 两个安装包的界面、校验、卸载方式完全一致。
 安装界面里可以：

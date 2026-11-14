@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -45,28 +45,39 @@
     所以不能走 ProjectReference，改为构建时按当前 RID 编译一遍并把产物抄到 <输出>\audio\。
   -->
   <Target Name="BuildAudioSink" BeforeTargets="Build">
+    <!-- 音频子进程一律按框架依赖编译：自包含安装时程序目录本来就有运行时，靠启动时的
+         DOTNET_ROOT 复用即可，不必再让它背一份 90 MB 的运行时。 -->
     <MSBuild
       Projects="$(MSBuildThisFileDirectory)..\HdcMirror.Audio\HdcMirror.Audio.csproj"
       Targets="Build"
-      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
+      Properties="Configuration=$(Configuration)" />
   </Target>
 
   <Target Name="CopyAudioSink" AfterTargets="Build">
+    <RemoveDir Directories="$(OutDir)audio" />
     <PropertyGroup>
       <_AudioSinkBin>$(MSBuildThisFileDirectory)..\HdcMirror.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\</_AudioSinkBin>
-      <_AudioSinkBinRid>$(_AudioSinkBin)$(RuntimeIdentifier)\</_AudioSinkBinRid>
     </PropertyGroup>
-    <ItemGroup Condition="'$(RuntimeIdentifier)' == ''">
-      <_AudioSinkFiles Include="$(_AudioSinkBin)**\*.*" Exclude="$(_AudioSinkBin)**\*.pdb" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
-      <_AudioSinkFiles Include="$(_AudioSinkBinRid)**\*.*" Exclude="$(_AudioSinkBinRid)**\*.pdb" />
+    <!-- 只取目标目录本层文件，不递归：以前用 **\*.* 会把 self-contained 子目录整套抄进来，包体无端多 90 MB -->
+    <ItemGroup>
+      <_AudioSinkFiles Include="$(_AudioSinkBin)*.*" Exclude="$(_AudioSinkBin)*.pdb" />
     </ItemGroup>
     <Copy
       SourceFiles="@(_AudioSinkFiles)"
-      DestinationFolder="$(OutDir)audio\%(RecursiveDir)"
+      DestinationFolder="$(OutDir)audio\"
       SkipUnchangedFiles="true"
       Condition="'@(_AudioSinkFiles)' != ''" />
   </Target>
 
-</Project>
+
+  <!-- publish 阶段：把 build 阶段抄进 $(OutDir)audio\ 的产物一并放进发布输出。
+       没有这一段，dotnet publish 不会带上音频子进程，安装出来的软件就会出现「audio-missing」。 -->
+  <Target Name="PublishAudioSink" AfterTargets="Publish">
+    <ItemGroup>
+      <_AudioPublishFiles Include="$(OutDir)audio\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AudioPublishFiles)"
+          DestinationFiles="@(_AudioPublishFiles->'$(PublishDir)audio\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_AudioPublishFiles)' != ''" />
+  </Target></Project>

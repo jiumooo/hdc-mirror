@@ -15,7 +15,8 @@
 - 新增 `InstallPathGuard`：界面安装与 `--installto` 静默安装共用同一套校验 —— 拒绝磁盘根、系统目录、用户数据目录、临时目录、超过 170 字符的路径、非空且不是本程序的目录、无写入权限的目录
 - 界面上路径框即时校验：不合格时提示行变红说明原因，「安装」按钮置灰
 - 安装界面（语言选择 简体中文/English、用户说明与免责声明、路径选择与浏览、完成后的启动询问）首次进仓库
-- 新增**两个安装包**：`HdcMirror-Setup-NeedsDotNet8.exe`（轻量，20 MB，**需要系统已装 .NET 8 桌面运行时**，否则双击会提示缺少运行时）与 `HdcMirror-Setup-WithRuntime.exe`（完整，144 MB，运行时打包在内，**不需要预装 .NET**）
+- 修复**安装包缺少音频子进程**：`dotnet publish` 不包含 Build 阶段才生成的 `audio\`，导致装完连不上手机音频（`audio-missing`）。新增 `PublishAudioSink` 在发布阶段一并拷贝，并让音频子进程通过 `DOTNET_ROOT` 复用主程序运行时，`audio\` 只放框架依赖产物（6 个文件 / 25 MB）
+- 新增**两个安装包**：`HdcMirror-Setup-NeedsDotNet8.exe`（轻量，26 MB，**需要系统已装 .NET 8 桌面运行时**，否则双击会提示缺少运行时）与 `HdcMirror-Setup-WithRuntime.exe`（完整，151 MB，运行时打包在内，**不需要预装 .NET**）
 
 安装程序自己带位置选择，支持和兼容范围写明白。
 

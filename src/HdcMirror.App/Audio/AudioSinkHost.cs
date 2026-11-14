@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // 蓝牙音频接收子进程的父侧管家。
 //
 // 子进程（HdcMirror.Audio.exe）负责真正去 Open AudioPlaybackConnection，
@@ -131,6 +131,10 @@ public sealed class AudioSinkHost : IDisposable
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
                 StandardErrorEncoding = System.Text.Encoding.UTF8,
             };
+
+            // 自包含安装时程序目录里就有整套 .NET 运行时。让音频子进程也用它，
+            // 这样 audio\ 里只需要放框架依赖版产物，不必再背一份 90 MB 的运行时。
+            startInfo.Environment["DOTNET_ROOT"] = AppContext.BaseDirectory;
 
             Process process = new() { StartInfo = startInfo, EnableRaisingEvents = true };
             process.OutputDataReceived += OnOutputLine;
