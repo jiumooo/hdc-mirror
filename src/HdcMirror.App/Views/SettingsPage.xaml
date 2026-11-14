@@ -35,29 +35,6 @@
                         Unchecked="OnCloseToTrayChanged" />
                 </StackPanel>
             </Border>
-            <!--  启动与扫描  -->
-            <Border Style="{StaticResource CardStyle}">
-                <StackPanel>
-                    <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Static res:Strings.Settings_Section_Startup}" />
-                    <CheckBox
-                        x:Name="AutoScanBox"
-                        Margin="0,14,0,0"
-                        Checked="OnAutoScanChanged"
-                        Content="{x:Static res:Strings.Settings_AutoScan}"
-                        FontSize="13"
-                        Unchecked="OnAutoScanChanged" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        FontSize="12"
-                        Opacity="0.72"
-                        Text="{x:Static res:Strings.Settings_AutoScanHint}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
             <!--  界面语言  -->
             <Border Style="{StaticResource CardStyle}">
                 <StackPanel>

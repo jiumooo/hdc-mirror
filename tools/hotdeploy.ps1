@@ -72,8 +72,18 @@ if ($running) {
 # hdc.exe 是被应用拉起的常驻服务端，会占着 tools\libusb_shared.dll，不结束就覆盖不了
 # 注意：进程 Path 可能返回 8.3 短名（例如 ...\Local\HDCMIR~1\current\tools\hdc.exe），
 # 所以不能用 StartsWith 精确前缀，只能按 HdcMirror / HDCMIR 关键字匹配。
-$hdcBusy = Get-Process hdc -ErrorAction SilentlyContinue | Where-Object {
-    $_.Path -and ($_.Path -match 'HDCMIR')
+$installedHdc = Join-Path $install 'tools\hdc.exe'
+$sourceHdc    = Join-Path $binDir 'tools\hdc.exe'
+$hdcChanged = $true
+if ((Test-Path $installedHdc) -and (Test-Path $sourceHdc)) {
+    $hdcChanged = (Get-FileHash $installedHdc).Hash -ne (Get-FileHash $sourceHdc).Hash
+}
+if (-not $hdcChanged) { Write-Host '   · hdc.exe 无变化，保留现有连接（不断开手机）' }
+$hdcBusy = @()
+if ($hdcChanged) {
+    $hdcBusy = Get-Process hdc -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and ($_.Path -match 'HDCMIR')
+    }
 }
 if ($hdcBusy) {
     foreach ($p in $hdcBusy) {

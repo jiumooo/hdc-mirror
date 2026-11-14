@@ -21,9 +21,27 @@ public sealed class AppSettings
 
     private static AppSettings? _current;
 
-    /// <summary>启动后是否自动扫描局域网设备（关掉则只能手动点「扫描」）。</summary>
-    /// <summary>调试用：在鼠标落点画一个触摸点指示圈（只在 Debug 构建里生效，正式版不编译进去）。</summary>
-    public bool AutoScanOnStart { get; set; } = true;
+    /// <summary>
+    /// 快速甩动：视频 / 短剧类应用要求更快的滑动才认「翻集」。
+    /// 开启后拖动帧间隔 16 ms → 8 ms，抬手前的甩动尾巴从位移的 8% 提到 18%。
+    /// </summary>
+    public bool SwipeFastMode { get; set; } = true;
+
+    /// <summary>
+    /// 这些应用改用「系统原生滑动」（uitest uiInput swipe）而不是流式触摸。
+    /// 逗号分隔包名；<c>*</c> 表示所有应用。视频/短剧类应用用流式触摸常被判定为「不是甩动」。
+    /// </summary>
+    public string SwipeNativeApps { get; set; } = "com.kylin.read";
+
+    /// <summary>手动强制：拖动与滚轮一律用甩动/翻页注入，不看前台应用（前台检测在某些机型上不可靠）。</summary>
+    public bool ForceFlingWheel { get; set; }
+
+    /// <summary>最近一次探测到的前台包名（不落盘时的运行期缓存也写这里，供设置页取用）。</summary>
+    /// <remarks>
+    /// TODO(0.2.4): 死配置，全仓无任何读写点（设置页的「当前前台应用」改由
+    /// <c>Services/ForegroundAppProbe.cs</c> 现读现用）。0.2.3 按所有者要求先保留，下个版本删除。
+    /// </remarks>
+    public string LastForegroundPackage { get; set; } = string.Empty;
 
     /// <summary>当前生效的设置（首次访问时从磁盘加载）。</summary>
     public static AppSettings Current => _current ??= Load();

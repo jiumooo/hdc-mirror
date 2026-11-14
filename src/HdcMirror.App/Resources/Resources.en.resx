@@ -720,15 +720,6 @@ This removes the saved entry on this PC and drops the current connection. Nothin
   <data name="Settings_VolumeHintOff" xml:space="preserve">
     <value>Now: the PC side follows the slider below; the phone volume still stacks on top of it.</value>
   </data>
-  <data name="Settings_Section_Startup" xml:space="preserve">
-    <value>Startup &amp; scanning</value>
-  </data>
-  <data name="Settings_AutoScan" xml:space="preserve">
-    <value>Scan the network for devices at startup</value>
-  </data>
-  <data name="Settings_AutoScanHint" xml:space="preserve">
-    <value>When off, the app will not look for phones by itself — click Scan in the toolbar instead.</value>
-  </data>
   <data name="Settings_Section_Data" xml:space="preserve">
     <value>Local data</value>
   </data>
@@ -850,5 +841,38 @@ This removes the saved entry on this PC and drops the current connection. Nothin
   </data>
   <data name="About_LicenseBody" xml:space="preserve">
     <value>This project is MIT-licensed. Video decoding uses FFmpeg (LGPL 2.1 or later, dynamically linked and replaceable); the UI framework WPF-UI, the tray library H.NotifyIcon and the updater Velopack are MIT-licensed.</value>
+  </data>
+  <data name="Settings_SwipeFast" xml:space="preserve">
+    <value>Fast flick (better for video/short-drama apps)</value>
+  </data>
+  <data name="Settings_SwipeFastHint" xml:space="preserve">
+    <value>Some apps only switch episodes when the swipe is fast enough. When on, drag frames go from 16 ms to 8 ms and the release flick grows from 8% to 18% of the drag distance.</value>
+  </data>
+  <data name="Settings_NativeApps" xml:space="preserve">
+    <value>Per-app native swipe</value>
+  </data>
+  <data name="Settings_NativeAppsHint" xml:space="preserve">
+    <value>Comma-separated package names. Drags inside these apps are sent as one native swipe with real velocity — for video/short-drama apps that only move on a fast flick. Leave empty to use streamed touch everywhere.</value>
+  </data>
+  <data name="Settings_NativeAppsUseCurrent" xml:space="preserve">
+    <value>Use current foreground app</value>
+  </data>
+  <data name="Settings_ForegroundApp" xml:space="preserve">
+    <value>Current foreground app</value>
+  </data>
+  <data name="Settings_ForegroundAppHint" xml:space="preserve">
+    <value>The app the phone is using right now. Click "Use current foreground app" to add it to the native-swipe list below; every entry there can be removed on its own.</value>
+  </data>
+  <data name="Settings_ForegroundAppUnknown" xml:space="preserve">
+    <value>Not read yet (connect the phone, or switch to the app and come back)</value>
+  </data>
+  <data name="Settings_ForegroundAppRefresh" xml:space="preserve">
+    <value>Read again</value>
+  </data>
+  <data name="Settings_ForegroundAppBusy" xml:space="preserve">
+    <value>Reading…</value>
+  </data>
+  <data name="Settings_NativeAppsRemove" xml:space="preserve">
+    <value>Remove</value>
   </data>
 </root>

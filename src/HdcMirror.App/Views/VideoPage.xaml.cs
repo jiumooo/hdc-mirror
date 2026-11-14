@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -13,13 +13,16 @@ namespace HdcMirror.App.Views;
 
 /// <summary>
 /// 画面页：清晰度与流畅度预设、帧率、码率、锁屏画面。
-/// 改动即存，写进 <c>%APPDATA%\HdcMirror\settings.json</c>；帧率与码率在下次建立镜像会话时生效。
+/// 改动即存，写进 <c><安装目录>\data\settings.json</c>；帧率与码率在下次建立镜像会话时生效。
 /// </summary>
 public partial class VideoPage : UserControl
 {
     private readonly AppSettings _settings = AppSettings.Current;
 
     private bool _loading;
+
+    /// <summary>最近一次读到的前台应用；还没读过是 null。</summary>
+    private ForegroundApp? _foreground;
 
     /// <summary>初始化画面页，并把当前配置回填到控件。</summary>
     public VideoPage()
@@ -40,6 +43,10 @@ public partial class VideoPage : UserControl
             PresetBox.SelectedIndex = IndexOfPreset();
             UpdatePresetDetail();
             LockShotBox.IsChecked = _settings.LockScreenCapture;
+        SwipeFastBox.IsChecked = _settings.SwipeFastMode;
+        NativeAppsBox.Text = _settings.SwipeNativeApps;
+        UpdateNativeAppsText();
+        RenderNativeAppsList();
         }
         finally
         {
@@ -47,6 +54,7 @@ public partial class VideoPage : UserControl
         }
 
         _ = RefreshFrameRateAsync();
+        _ = LoadForegroundAppAsync();
     }
 
     /// <summary>
@@ -164,6 +172,209 @@ public partial class VideoPage : UserControl
         _settings.BitRateMbps = BitRateAt(BitRateBox.SelectedIndex);
         SyncPresetFromSettings();
         Persist();
+    }
+
+    /// <summary>把「应用专属滑动」名单写回设置（失焦即存，不用额外按钮）。</summary>
+    private void OnNativeAppsCommit(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _settings.SwipeNativeApps = (NativeAppsBox.Text ?? string.Empty).Trim();
+        _settings.Save();
+        UpdateNativeAppsText();
+        RenderNativeAppsList();
+    }
+
+    /// <summary>把最近一次探测到的前台包名填进名单，方便「就在这个应用里出问题」时一键加进去。</summary>
+    private void OnNativeAppsUseCurrent(object sender, RoutedEventArgs e)
+    {
+        if (_foreground is null)
+        {
+            NativeAppsText.Text = Strings.Settings_ForegroundAppUnknown;
+            return;
+        }
+
+        AddNativeApp(_foreground.Package);
+    }
+
+    /// <summary>把一条包名加进名单（已在名单里就只提示，不重复加）。</summary>
+    private void AddNativeApp(string package)
+    {
+        if (string.IsNullOrWhiteSpace(package))
+        {
+            return;
+        }
+
+        List<string> items = ParseNativeApps();
+        bool exists = false;
+        foreach (string item in items)
+        {
+            if (string.Equals(item, package, StringComparison.OrdinalIgnoreCase))
+            {
+                exists = true;
+                break;
+            }
+        }
+
+        if (!exists)
+        {
+            items.Add(package);
+            SaveNativeApps(items);
+        }
+
+        NativeAppsText.Text = package;
+    }
+
+    /// <summary>从名单里删掉一条，删完就恢复该应用的默认滑动。</summary>
+    private void RemoveNativeApp(string package)
+    {
+        List<string> items = ParseNativeApps();
+        if (items.RemoveAll(item => string.Equals(item, package, StringComparison.OrdinalIgnoreCase)) == 0)
+        {
+            return;
+        }
+
+        SaveNativeApps(items);
+    }
+
+    /// <summary>把名单写回设置并刷新界面（文本框与逐行列表都跟着变）。</summary>
+    private void SaveNativeApps(List<string> items)
+    {
+        string text = string.Join(", ", items);
+        _settings.SwipeNativeApps = text;
+        _settings.Save();
+
+        _loading = true;
+        try
+        {
+            NativeAppsBox.Text = text;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        UpdateNativeAppsText();
+        RenderNativeAppsList();
+    }
+
+    /// <summary>把「逗号分隔」的名单拆成列表；<c>*</c> 表示全部应用，照原样保留。</summary>
+    private List<string> ParseNativeApps()
+    {
+        var items = new List<string>();
+        foreach (string raw in (_settings.SwipeNativeApps ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string item = raw.Trim();
+            if (item.Length > 0 && !items.Contains(item))
+            {
+                items.Add(item);
+            }
+        }
+
+        return items;
+    }
+
+    /// <summary>按名单逐行重建列表：一行一个包名，行尾一个删除按钮。</summary>
+    private void RenderNativeAppsList()
+    {
+        NativeAppsList.Children.Clear();
+        foreach (string package in ParseNativeApps())
+        {
+            var row = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var text = new TextBlock
+            {
+                Text = package,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            Grid.SetColumn(text, 0);
+            row.Children.Add(text);
+
+            var remove = new Wpf.Ui.Controls.Button
+            {
+                Content = Strings.Settings_NativeAppsRemove,
+                MinHeight = 26,
+                MinWidth = 56,
+                FontSize = 12,
+            };
+            string captured = package;
+            remove.Click += (_, _) => RemoveNativeApp(captured);
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+
+            NativeAppsList.Children.Add(row);
+        }
+    }
+
+    /// <summary>重新读一次手机当前前台应用，把包名与应用名显示出来。</summary>
+    private async void OnForegroundAppRefresh(object sender, RoutedEventArgs e)
+    {
+        await LoadForegroundAppAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>把前台应用加进专属滑动名单。</summary>
+    private void OnForegroundAppAdd(object sender, RoutedEventArgs e)
+    {
+        if (_foreground is null)
+        {
+            ForegroundAppText.Text = Strings.Settings_ForegroundAppUnknown;
+            return;
+        }
+
+        AddNativeApp(_foreground.Package);
+        SavedText.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            Strings.Settings_EffectiveSummaryFormat,
+            Strings.Settings_NativeApps,
+            _foreground.Display);
+        SavedText.Opacity = 1;
+    }
+
+    /// <summary>读前台应用并刷新卡片文案（包名 + 应用名）。</summary>
+    private async Task LoadForegroundAppAsync()
+    {
+        ForegroundAppText.Text = Strings.Settings_ForegroundAppBusy;
+        try
+        {
+            _foreground = await ForegroundAppProbe.ProbeAsync(new FileLogSink()).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is HdcMirror.Core.Hdc.HdcException or InvalidOperationException)
+        {
+            Debug.WriteLine(ex.Message);
+            _foreground = null;
+        }
+
+        ForegroundAppText.Text = _foreground is null
+            ? Strings.Settings_ForegroundAppUnknown
+            : string.IsNullOrWhiteSpace(_foreground.Label)
+                ? _foreground.Package
+                : _foreground.Label + "（" + _foreground.Package + "）";
+    }
+
+    private void UpdateNativeAppsText()
+    {
+        string list = _settings.SwipeNativeApps;
+        NativeAppsText.Text = list.Length == 0 ? string.Empty : list;
+    }
+
+    private void OnSwipeFastChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _settings.SwipeFastMode = SwipeFastBox.IsChecked == true;
+        _settings.Save();
+        SavedText.Text = string.Format(Strings.Settings_EffectiveSummaryFormat, Strings.Settings_SwipeFast, _settings.SwipeFastMode ? Strings.Common_Yes : Strings.Common_No);
+        SavedText.Opacity = 1;
     }
 
     private void OnLockShotChanged(object sender, RoutedEventArgs e)

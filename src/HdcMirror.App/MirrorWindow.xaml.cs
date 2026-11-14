@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using System;
 using System.Globalization;
 using System.IO;
@@ -50,7 +51,10 @@ public partial class MirrorWindow
     /// <summary>触摸移动节流（毫秒）。</summary>
 
     /// <summary>鼠标按下后位移小于该值（DIP）视为点击，不进设备做 down/move/up。</summary>
-    private const int MoveThrottleMs = 16;
+    // 拖动限流：设备侧手势回放约 30 次/秒（实测 -frameRate 请求 60/90 都只出 30fps），
+    // 16 ms 已对齐一帧；打开「快速甩动」后放宽到 8 ms，让轨迹更密、起停更贴手。
+    // 注意：这里是按设置实时求值，不能写成 const —— 用户改了设置要立刻生效。
+    private static int MoveThrottleMs => AppSettings.Current.SwipeFastMode ? 8 : 16;
     private const double ClickMaxDistance = 8d;
 
     /// <summary>拖动分段下发的最小位移（设备像素）：太碎会把 uitest 命令排满，太粗会一顿一顿。</summary>
@@ -119,6 +123,12 @@ public partial class MirrorWindow
     private long _fpsWindowStart;
     private long _fpsWindowFrames;
     private int _fps;
+
+    /// <summary>上次按画面亮度调整底部功能键颜色的时刻（节流用）。</summary>
+    private long _navColorStamp;
+
+    /// <summary>底部功能键当前是否为浅色（true = 白，适合深色画面）。</summary>
+    private bool _navLight = true;
 
     /// <summary>当前画面宽高比（宽 ÷ 高），随真实帧更新。</summary>
     /// <summary>开窗前由主窗口指定的初始位置与大小（DIP）；为空则沿用 XAML 里的默认尺寸。</summary>
@@ -257,6 +267,15 @@ public partial class MirrorWindow
 
     /// <summary>探测连续失败次数：连续失败说明这台机器上拿不到包名，放弃并回退成上下滑动。</summary>
     private int _launcherFailures;
+
+    /// <summary>aa dump -a 第一条 mission 的包名（= 用户眼前的应用）。</summary>
+    private string? _foregroundPackage;
+
+    /// <summary>上面那个包名的采集时刻。</summary>
+    private long _foregroundStamp;
+
+    /// <summary>滚轮翻集的节流时刻。</summary>
+    private long _lastWheelFlingTicks;
 
     /// <summary>窗口句柄来源，用来挂 WM_SIZING（比例锁 + 桌面边界钳制）。</summary>
     private HwndSource? _hwndSource;
@@ -608,6 +627,9 @@ public partial class MirrorWindow
 
             // 顺手判定「画面左右有没有黑边」：有就整体放大到看不见黑边（窗口大小不动）。
             UpdateContentCrop(handle.AddrOfPinnedObject(), stride, visibleWidth, visibleHeight);
+
+            // 底部功能键压在画面之上：白底界面里白键看不见，所以按画面亮度自动换深/浅色。
+            UpdateNavBarColor(handle.AddrOfPinnedObject(), stride, visibleWidth, visibleHeight);
         }
         finally
         {
@@ -805,6 +827,12 @@ public partial class MirrorWindow
 
             case MirrorStatus.Starting:
                 ShowStatus(Strings.Status_Mirror_Starting);
+                break;
+
+            case MirrorStatus.Streaming:
+                // 开始出帧：把锁屏层收掉。状态栏交给 UpdateStatus 按帧数刷新，
+                // 这里不要再写文案——Status_Mirror_Streaming 是带 {0}{1}{2} 的格式串。
+                IdleHost.Visibility = Visibility.Collapsed;
                 break;
 
             default:
@@ -1023,6 +1051,10 @@ public partial class MirrorWindow
         // 给蓝牙栈一点时间：镜像窗刚开就抢 A2DP 端点容易拿到「设备忙」。
         await Task.Delay(700).ConfigureAwait(true);
 
+        // 再等画面出第一帧：原来固定 700ms 就开音频，蓝牙端点往往比画面先通，
+        // 结果就是「画面还没出来声音先到」。改成等首帧后再开，最多等 8 秒。
+        await WaitForFirstFrameAsync().ConfigureAwait(true);
+
         if (_audio.IsRunning || !AppSettings.Current.AutoStartAudio)
         {
             return;
@@ -1038,6 +1070,29 @@ public partial class MirrorWindow
 
         _log.Warn("audio", $"连接设备后自动开启音频失败：{_audio.LastError}");
         ShowStatus(string.Format(CultureInfo.CurrentCulture, Strings.Status_Audio_FailedFormat, _audio.LastError ?? "audio"));
+    }
+
+    /// <summary>
+    /// 等镜像会话出第一帧；超时或会话没起来就直接返回，不阻塞音频。
+    /// 用 session.DecodedFrames 判断：解码成功一帧就 +1，静止画面也照样算。
+    /// </summary>
+    private async Task WaitForFirstFrameAsync()
+    {
+        const int timeoutMilliseconds = 8000;
+        const int pollMilliseconds = 100;
+
+        for (int waited = 0; waited < timeoutMilliseconds; waited += pollMilliseconds)
+        {
+            MirrorSession? session = _session;
+            if (session is null || session.DecodedFrames > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(pollMilliseconds).ConfigureAwait(true);
+        }
+
+        _log.Warn("audio", "等首帧超时（8 秒），仍按设置开启音频");
     }
 
     private void OnAudioToggleClick(object sender, RoutedEventArgs e)
@@ -2450,6 +2505,14 @@ public partial class MirrorWindow
                 {
                     _input.TouchMove(_lastDevice.X, _lastDevice.Y);
                 }
+
+                // 快速甩动：抬手前顺着拖动方向再送一小段（位移的 18%），设备侧按速度判定的
+                // 甩动才够格触发「翻页 / 翻集」。关掉开关则保持原样，停在哪就是哪。
+                if (moved && AppSettings.Current.SwipeFastMode)
+                {
+                    SendFastTail(pressDevice);
+                }
+
                 _input.TouchUp();
                 return;
             }
@@ -2557,6 +2620,16 @@ public partial class MirrorWindow
     private void SendClick(int x, int y)
     {
         InvalidateLauncherCache();
+
+        // 常驻 8012 通道写一条手势只要 0.1 ms，而走 hdc shell 每条命令都要付一次
+        // WiFi 往返（实测平均 148.6 ms）—— 这就是「点一下要等一下才有反应」的主因。
+        // 通道可用时直接用它发「按下 + 抬起」，点哪儿立刻响应。
+        if (!_streamUnusable && _input is { IsConnected: true } channel)
+        {
+            channel.Tap(x, y);
+            return;
+        }
+
         RunShell($"uitest uiInput click {x} {y}");
     }
 
@@ -2633,6 +2706,10 @@ public partial class MirrorWindow
         });
     }
     /// <summary>抬手时补最后余量：不足最小分段的也算上，避免结尾少走一截。</summary>
+    /// <remarks>
+    /// TODO(0.2.4): 死代码，全仓没有任何调用点（抬手补帧已由 <see cref="SendFastTail"/> 与
+    /// OnScreenLeftUp 的流式分支承担）。0.2.3 按所有者要求先保留，下个版本删除。
+    /// </remarks>
     private void SendDragTail()
     {
         System.Drawing.Point from = _lastSent;
@@ -2644,6 +2721,45 @@ public partial class MirrorWindow
 
         _lastSent = to;
         SendSwipe(from.X, from.Y, to.X, to.Y, DragVelocity);
+    }
+
+    /// <summary>
+    /// 快速甩动的尾巴：沿「按下点 → 当前点」的方向再补 18% 位移，速度按拖动真实速度放大。
+    /// <para>
+    /// 为什么需要它：设备侧把「甩动」和「慢慢拖」区分得很死，只有抬手瞬间还有速度才算甩动；
+    /// 流式触摸在抬手前刚好停在原地（最后一帧补的是同一位置），速度判为 0，翻页就不触发。
+    /// 补这一小段等于人为保留速度。仅在 <see cref="AppSettings.SwipeFastMode"/> 打开时调用。
+    /// </para>
+    /// </summary>
+    /// <param name="pressDevice">本轮手势的按下点（设备坐标）。</param>
+    private void SendFastTail(System.Drawing.Point pressDevice)
+    {
+        int dx = _lastDevice.X - pressDevice.X;
+        int dy = _lastDevice.Y - pressDevice.Y;
+        double distance = Math.Sqrt((dx * (double)dx) + (dy * (double)dy));
+        if (distance < 1d)
+        {
+            return;
+        }
+
+        // 尾巴长度按位移的 18%，至少 12 像素，最多 160 像素：
+        // 太短设备不认速度，太长会滑过头、把下一屏的内容也带进来。
+        double tail = Math.Clamp(distance * 0.18d, 12d, 160d);
+        int tailX = (int)Math.Round(_lastDevice.X + (dx / distance * tail));
+        int tailY = (int)Math.Round(_lastDevice.Y + (dy / distance * tail));
+        tailX = Math.Clamp(tailX, 0, Math.Max(0, _screenWidth - 1));
+        tailY = Math.Clamp(tailY, 0, Math.Max(0, _screenHeight - 1));
+        if (tailX == _lastDevice.X && tailY == _lastDevice.Y)
+        {
+            return;
+        }
+
+        if (_input is { IsConnected: true } channel)
+        {
+            channel.TouchMove(tailX, tailY);
+        }
+
+        _lastSent = new System.Drawing.Point(tailX, tailY);
     }
 
     /// <summary>把一条设备侧命令丢到后台跑，失败写日志，不阻塞界面线程。</summary>
@@ -2689,6 +2805,27 @@ public partial class MirrorWindow
         }
 
         e.Handled = true;
+
+        // 应用专属滑动：视频/短剧类只认甩动，滚轮直接翻一集（不累加像素）。
+        if (AppSettings.Current.ForceFlingWheel || NativeSwipeForForeground())
+        {
+            long flingNow = Environment.TickCount64;
+            if (flingNow - _lastWheelFlingTicks >= 350 && _screenWidth > 0 && _screenHeight > 0)
+            {
+                _lastWheelFlingTicks = flingNow;
+                int flingX = _screenWidth / 2;
+                int flingTop = Math.Max(80, _screenHeight / 4);
+                int flingBottom = _screenHeight - flingTop;
+                bool nextEpisode = e.Delta < 0;
+                string flingCmd = nextEpisode
+                    ? $"uitest uiInput fling {flingX} {flingBottom} {flingX} {flingTop} 12000 60"
+                    : $"uitest uiInput fling {flingX} {flingTop} {flingX} {flingBottom} 12000 60";
+                _ = _inputRunner.ShellAsync(flingCmd, CancellationToken.None);
+                _log.Info("wheel", $"滚轮翻集（{(nextEpisode ? "下一集" : "上一集")}）：{_foregroundPackage}");
+            }
+
+            return;
+        }
 
         // 驱动常把一格滚轮拆成多条 MouseWheel（实测一格 4 条、间隔 16ms 内），
         // 45ms 内只认第一条，避免一格滚轮被当成好几次。
@@ -2904,8 +3041,24 @@ public partial class MirrorWindow
         {
             try
             {
-                var result = await runner.ShellAsync("aa dump -r", CancellationToken.None).ConfigureAwait(false);
+                var result = await runner.ShellAsync("aa dump -a", CancellationToken.None).ConfigureAwait(false);
+                string? topPkg = ExtractTopMissionPackage(result.CombinedOutput);
+                if (!string.IsNullOrEmpty(topPkg))
+                {
+                    _foregroundPackage = topPkg;
+                    _foregroundStamp = Environment.TickCount64;
+                }
+
+                // 桌面判据必须走「进程级 state」，不能走 mission 列表。
+                // 实测（HarmonyOS NEXT）：人已经在桌面时，current mission lists 里仍然留着上一次用过的应用
+                // （比如 com.kylin.read），而该应用的进程早就没了；只有 com.ohos.sceneboard 等系统壳进程是
+                // state #FOREGROUND。所以按 mission 判前台会一直判成「在应用里」，桌面上滚轮永远只能上下滑。
+                // 现在改成：优先用进程级（DetectLauncher），mission 只作为进程列表读不出来时的兜底。
                 bool? detected = DetectLauncher(result.CombinedOutput);
+                if (detected is null && !string.IsNullOrEmpty(topPkg))
+                {
+                    detected = IsShellProcess(topPkg);
+                }
                 if (detected is null)
                 {
                     NoteLauncherProbeFailed("输出里没有前台状态");
@@ -2941,6 +3094,65 @@ public partial class MirrorWindow
     /// </summary>
     /// <param name="output">命令输出。</param>
     /// <returns>true = 桌面；false = 有真实应用在前台；null = 读不出前台状态。</returns>
+    /// <summary>取 aa dump -a 里 current mission lists 中 state #FOREGROUND 的 mission 包名（当前前台应用）。</summary>
+    private static string? ExtractTopMissionPackage(string? output)
+    {
+        if (string.IsNullOrEmpty(output))
+        {
+            return null;
+        }
+
+        string? currentPkg = null;
+        foreach (string raw in output.Split('\n'))
+        {
+            string line = raw.Trim();
+            if (line.StartsWith("state #FOREGROUND", StringComparison.Ordinal))
+            {
+                return currentPkg;
+            }
+
+            Match match = Regex.Match(line, @"mission name #\[#([A-Za-z0-9_.]+):");
+            if (match.Success)
+            {
+                currentPkg = match.Groups[1].Value;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>当前前台是否命中「应用专属滑动」名单（只认 5 秒内采集的包名，避免沿用上一个应用）。</summary>
+    private bool NativeSwipeForForeground()
+    {
+        string list = AppSettings.Current.SwipeNativeApps;
+        if (string.IsNullOrWhiteSpace(list))
+        {
+            return false;
+        }
+
+        string? pkg = _foregroundPackage;
+        if (string.IsNullOrEmpty(pkg) || Environment.TickCount64 - _foregroundStamp > 5000)
+        {
+            ProbeLauncherAsync();
+            return false;
+        }
+
+        foreach (string raw in list.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string item = raw.Trim();
+            if (item.Length == 0)
+            {
+                continue;
+            }
+
+            if (item == "*" || string.Equals(item, pkg, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
     private static bool? DetectLauncher(string output)
     {
         if (string.IsNullOrEmpty(output))
@@ -2990,7 +3202,12 @@ public partial class MirrorWindow
         || name.Contains("launcher", StringComparison.OrdinalIgnoreCase)
         || name.Contains("SystemUI", StringComparison.OrdinalIgnoreCase)
         || name.Contains("ailifesvc", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("hiview", StringComparison.OrdinalIgnoreCase);
+        || name.Contains("hiview", StringComparison.OrdinalIgnoreCase)
+        // 下面两个在桌面上同样是 state #FOREGROUND：小艺语音助手（shell_assistant）与
+        // 媒体控制卡片（mediacontroller:UIExtAbility）。漏掉它们会让「人在桌面」被判成
+        // 「有真实应用在前台」，桌面滚轮就又退回上下滑了。
+        || name.Contains("shell_assistant", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("mediacontroller", StringComparison.OrdinalIgnoreCase);
 
     // ── 界面卡死看门狗 ────────────────────────────────────────────
 
@@ -3254,6 +3471,66 @@ public partial class MirrorWindow
     /// 检测画面左右是否带黑边（手机横屏看剧时影片比屏幕窄），若有则等比放大画面把黑边挤出可视区，
     /// 窗口尺寸不动 —— 用户要求「横屏看剧时旁边的两条黑边自动去掉，同时保持窗口大小」。
     /// </summary>
+    /// <summary>
+    /// 底部三个功能键是画在画面之上的，颜色写死成白以后，遇到白底界面（微信、设置、阅读器）就完全看不见。
+    /// 这里按画面底部那一条的平均亮度决定用白键还是深色键：深底配白键、浅底配深键。
+    /// </summary>
+    private void UpdateNavBarColor(IntPtr data, int stride, int width, int height)
+    {
+        long now = System.Environment.TickCount64;
+        if (now - _navColorStamp < 400 || width < 40 || height < 40)
+        {
+            return;
+        }
+
+        _navColorStamp = now;
+
+        // 只采样底部 1/6 高度：功能键就压在这块区域上，采别处会跟着页面中部颜色乱跳。
+        int bandTop = Math.Max(0, height - Math.Max(24, height / 6));
+        int stepY = Math.Max(1, (height - bandTop) / 12);
+        int stepX = Math.Max(1, width / 24);
+
+        long sum = 0;
+        int count = 0;
+        for (int y = bandTop; y < height; y += stepY)
+        {
+            int rowOffset = y * stride;
+            for (int x = 0; x < width; x += stepX)
+            {
+                int offset = rowOffset + (x * 4);
+                byte b = System.Runtime.InteropServices.Marshal.ReadByte(data, offset);
+                byte g = System.Runtime.InteropServices.Marshal.ReadByte(data, offset + 1);
+                byte r = System.Runtime.InteropServices.Marshal.ReadByte(data, offset + 2);
+
+                // 感知亮度：人眼对绿色最敏感，直接取 RGB 平均值会让亮黄色被误判成暗色。
+                sum += ((299L * r) + (587L * g) + (114L * b)) / 1000L;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            return;
+        }
+
+        bool light = sum / count < 150;
+        if (light == _navLight)
+        {
+            return;
+        }
+
+        _navLight = light;
+        Color glyph = light ? Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0xF2, 0x1A, 0x1A, 0x1A);
+        var fill = new SolidColorBrush(glyph);
+        fill.Freeze();
+
+        BackGlyph.Fill = fill;
+        BackGlyph.Stroke = fill;
+        HomeGlyph.Fill = fill;
+        RecentGlyph.Fill = fill;
+        _log.Info("navbar", $"画面底部偏{(light ? "暗" : "亮")}，功能键切换为{(light ? "白色" : "深色")}");
+    }
+
     private void UpdateContentCrop(IntPtr data, int stride, int width, int height)
     {
         long now = System.Environment.TickCount64;

@@ -127,7 +127,7 @@ public sealed class HdcDiscoveryOptions
     public bool VerifyWithTconn { get; init; } = true;
 
     /// <summary>单次 <c>hdc tconn</c> 校验的超时。细扫时每个误报端口都要验一次，太长会拖垮整轮扫描。</summary>
-    public int VerifyTimeoutMilliseconds { get; init; } = 1500;
+    public int VerifyTimeoutMilliseconds { get; init; } = 3000;
 }
 
 /// <summary>
@@ -234,6 +234,30 @@ public sealed class HdcDeviceDiscovery
 
             _log.Info(Category, $"已连接无线设备 {found.Count} 台。");
             var preConnected = new HashSet<string>(found.Keys, StringComparer.OrdinalIgnoreCase);
+
+            // 线索端点快连：先用已验证端点直接 tconn，命中即视为已连接，避免掉进慢速细扫。
+            if (Options.KnownEndpoints is { Count: > 0 })
+            {
+                foreach (var endpoint in Options.KnownEndpoints)
+                {
+                    if (!TrySplitEndpoint(endpoint, out var address, out var port))
+                    {
+                        continue;
+                    }
+
+                    var key = address + ":" + port.ToString(CultureInfo.InvariantCulture);
+                    if (found.ContainsKey(key))
+                    {
+                        continue;
+                    }
+
+                    if (await TconnAsync(key, remove: false, cancellationToken).ConfigureAwait(false))
+                    {
+                        found[key] = new HdcDiscoveredDevice(key, address, port, true);
+                        _log.Info(Category, $"线索端点快连 {key} 成功。");
+                    }
+                }
+            }
 
             // ② 广播与端口探测并行：广播固定 6.1 秒，没必要串在探测前面等。
             state.Enter(HdcDiscoveryStage.Broadcasting, 0, 0, string.Empty);

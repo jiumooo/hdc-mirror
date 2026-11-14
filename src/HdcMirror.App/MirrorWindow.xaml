@@ -422,8 +422,10 @@
         BorderThickness="1"
         CornerRadius="14">
                 <Grid x:Name="FrameSurface" ClipToBounds="True">
+                    <!--  手机原生 1260×2720 要压到几百像素宽，默认线性插值会把文字糊掉；HighQuality 走双三次  -->
                     <Image
                         x:Name="ScreenImage"
+                        RenderOptions.BitmapScalingMode="HighQuality"
                         SnapsToDevicePixels="True"
                         Stretch="Fill" />
 
@@ -536,6 +538,7 @@
                     Style="{StaticResource NavBarButtonStyle}"
                     ToolTip="{x:Static res:Strings.Ui_KeyBack}">
                     <Path
+                        x:Name="BackGlyph"
                         Data="M 1.5,9 L 15,1.5 L 15,16.5 Z"
                         Fill="#F2FFFFFF"
                         Stroke="#F2FFFFFF"
@@ -548,6 +551,7 @@
                     Style="{StaticResource NavBarButtonStyle}"
                     ToolTip="{x:Static res:Strings.Ui_KeyHome}">
                     <Ellipse
+                        x:Name="HomeGlyph"
                         Width="16.5"
                         Height="16.5"
                         Fill="#F2FFFFFF" />
@@ -558,6 +562,7 @@
                     Style="{StaticResource NavBarButtonStyle}"
                     ToolTip="{x:Static res:Strings.Ui_KeyRecent}">
                     <Rectangle
+                        x:Name="RecentGlyph"
                         Width="15"
                         Height="15"
                         Fill="#F2FFFFFF"

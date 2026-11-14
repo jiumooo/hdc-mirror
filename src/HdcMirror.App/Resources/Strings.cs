@@ -644,15 +644,6 @@ public static class Strings
 
     /// <summary>音量 <c>Settings_VolumeHintOff</c></summary>
     public static string Settings_VolumeHintOff => Get(nameof(Settings_VolumeHintOff));
-    /// <summary>界面文案 <c>Settings_Section_Startup</c></summary>
-    public static string Settings_Section_Startup => Get(nameof(Settings_Section_Startup));
-
-    /// <summary>界面文案 <c>Settings_AutoScan</c></summary>
-    public static string Settings_AutoScan => Get(nameof(Settings_AutoScan));
-
-    /// <summary>界面文案 <c>Settings_AutoScanHint</c></summary>
-    public static string Settings_AutoScanHint => Get(nameof(Settings_AutoScanHint));
-
     /// <summary>界面文案 <c>Settings_Section_Data</c></summary>
     public static string Settings_Section_Data => Get(nameof(Settings_Section_Data));
 
@@ -755,4 +746,37 @@ public static class Strings
     public static string About_FeedbackHint => Get(nameof(About_FeedbackHint));
     public static string About_LicenseSection => Get(nameof(About_LicenseSection));
     public static string About_LicenseBody => Get(nameof(About_LicenseBody));
+
+    /// <summary>快速甩动（视频/短剧类应用更跟手）。</summary>
+    public static string Settings_SwipeFast => Get("Settings_SwipeFast");
+
+    /// <summary>快速甩动说明。</summary>
+    public static string Settings_SwipeFastHint => Get("Settings_SwipeFastHint");
+
+    /// <summary>应用专属滑动（改用系统原生 swipe）。</summary>
+    public static string Settings_NativeApps => Get("Settings_NativeApps");
+
+    /// <summary>应用专属滑动说明。</summary>
+    public static string Settings_NativeAppsHint => Get("Settings_NativeAppsHint");
+
+    /// <summary>填入当前前台应用按钮。</summary>
+    public static string Settings_NativeAppsUseCurrent => Get("Settings_NativeAppsUseCurrent");
+
+    /// <summary>当前前台应用卡片标题。</summary>
+    public static string Settings_ForegroundApp => Get("Settings_ForegroundApp");
+
+    /// <summary>当前前台应用说明。</summary>
+    public static string Settings_ForegroundAppHint => Get("Settings_ForegroundAppHint");
+
+    /// <summary>前台应用未知时的占位文案。</summary>
+    public static string Settings_ForegroundAppUnknown => Get("Settings_ForegroundAppUnknown");
+
+    /// <summary>重新读取前台应用的按钮。</summary>
+    public static string Settings_ForegroundAppRefresh => Get("Settings_ForegroundAppRefresh");
+
+    /// <summary>前台应用读取中的占位文案。</summary>
+    public static string Settings_ForegroundAppBusy => Get("Settings_ForegroundAppBusy");
+
+    /// <summary>应用专属滑动名单里单条记录的删除按钮。</summary>
+    public static string Settings_NativeAppsRemove => Get("Settings_NativeAppsRemove");
 }

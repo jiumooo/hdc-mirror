@@ -82,6 +82,49 @@
                 </StackPanel>
             </Border>
 
+            <!--  操作手感：快速甩动开关  -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static res:Strings.Settings_SwipeFast}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,6,0,0" FontSize="12" Opacity="0.7" Text="{x:Static res:Strings.Settings_SwipeFastHint}" TextWrapping="Wrap" />
+
+                    <CheckBox x:Name="SwipeFastBox" Margin="0,12,0,0" Checked="OnSwipeFastChanged" Content="{x:Static res:Strings.Settings_SwipeFast}" FontSize="13" Unchecked="OnSwipeFastChanged" />
+                </StackPanel>
+            </Border>
+
+            <!--  应用专属滑动：视频/短剧类应用改发原生 swipe  -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static res:Strings.Settings_NativeApps}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,6,0,0" FontSize="12" Opacity="0.7" Text="{x:Static res:Strings.Settings_NativeAppsHint}" TextWrapping="Wrap" />
+
+                    <TextBox x:Name="NativeAppsBox" Margin="0,12,0,0" MinHeight="36" LostFocus="OnNativeAppsCommit" VerticalContentAlignment="Center" />
+
+                    <!--  名单逐行显示，每行带删除按钮  -->
+                    <StackPanel x:Name="NativeAppsList" Margin="0,8,0,0" />
+
+                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                        <ui:Button MinHeight="32" Click="OnNativeAppsUseCurrent" Content="{x:Static res:Strings.Settings_NativeAppsUseCurrent}" />
+                        <TextBlock x:Name="NativeAppsText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--  当前前台应用：显示手机正在用的应用，一键加进上面的专属滑动名单  -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static res:Strings.Settings_ForegroundApp}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,6,0,0" FontSize="12" Opacity="0.7" Text="{x:Static res:Strings.Settings_ForegroundAppHint}" TextWrapping="Wrap" />
+
+                    <TextBlock x:Name="ForegroundAppText" Margin="0,12,0,0" FontSize="13" TextWrapping="Wrap" Text="{x:Static res:Strings.Settings_ForegroundAppUnknown}" />
+
+                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                        <ui:Button MinHeight="32" MinWidth="96" Click="OnForegroundAppRefresh" Content="{x:Static res:Strings.Settings_ForegroundAppRefresh}" />
+                        <ui:Button Margin="8,0,0,0" MinHeight="32" Click="OnForegroundAppAdd" Content="{x:Static res:Strings.Settings_NativeAppsUseCurrent}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <TextBlock x:Name="SavedText" Margin="0,12,0,0" FontSize="12" Opacity="0" Text="{x:Static res:Strings.Settings_EffectiveHint}" />
         </StackPanel>
     </ScrollViewer>

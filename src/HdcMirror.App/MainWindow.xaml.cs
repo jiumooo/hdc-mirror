@@ -235,12 +235,9 @@ public partial class MainWindow
             IReadOnlyList<HdcDevice> devices = await enumerator.EnumerateAsync().ConfigureAwait(true);
             if (devices.Count == 0)
             {
-                // 还没连过设备：按设置决定是否自动扫一次；关掉的人手动点「扫描」。
-                if (AppSettings.Current.AutoScanOnStart)
-                {
-                    await RefreshDevicesAsync().ConfigureAwait(true);
-                }
-
+                // 没有已连接的设备时不再自动扫局域网：只把用过的端点填进设备栏，点一下就连。
+                // 想找新设备的人自己点「扫描」。
+                RestoreRememberedDevices();
                 return;
             }
 
@@ -259,6 +256,52 @@ public partial class MainWindow
         {
             Debug.WriteLine(ex.Message);
             ShowStatus(Strings.Status_HdcUnavailable);
+        }
+    }
+
+    /// <summary>
+    /// 启动时把线索库里用过的端点填进设备栏（不联网、不扫描）：
+    /// 用户开机就能看到上次连过的设备，点「连接」直接 tconn，省掉一轮局域网扫描。
+    /// </summary>
+    private void RestoreRememberedDevices()
+    {
+        IReadOnlyList<EndpointHint> hints = _hints.List();
+        bool hasVerified = false;
+        foreach (EndpointHint hint in hints)
+        {
+            if (hint.Verified)
+            {
+                hasVerified = true;
+                break;
+            }
+        }
+
+        foreach (EndpointHint hint in hints)
+        {
+            // 有验证过的线索就只显示验证过的：没连成功过的端点多半是扫描误报。
+            if (hasVerified && !hint.Verified)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(hint.Endpoint))
+            {
+                continue;
+            }
+
+            var entry = new DeviceEntry(hint.Endpoint);
+            if (!string.IsNullOrWhiteSpace(hint.Name))
+            {
+                entry.Name = hint.Name!;
+            }
+
+            AddDeviceDistinct(entry);
+        }
+
+        ConnectButton.IsEnabled = Devices.Count > 0;
+        if (Devices.Count > 0)
+        {
+            SelectDevice(Devices[0]);
         }
     }
 
@@ -830,13 +873,12 @@ public partial class MainWindow
     }
 
     /// <summary>下拉收起时回到简介视图：再选同一台设备不会触发 SelectionChanged，靠这里兜住。</summary>
-    /// <summary>设备框：有设备就展开列表，一个设备都没有就直接去扫描。</summary>
+    /// <summary>设备框：有设备就展开列表；一台都没有时不再自动扫描（按用户要求），只提示去点「扫描」。</summary>
     private void OnDeviceBoxClick(object sender, RoutedEventArgs e)
     {
         if (Devices.Count == 0)
         {
             CloseDevicePopup();
-            _ = RefreshDevicesAsync();
             return;
         }
 

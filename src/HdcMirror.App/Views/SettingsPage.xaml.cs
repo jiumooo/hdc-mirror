@@ -33,7 +33,6 @@ public partial class SettingsPage : UserControl
         try
         {
             CloseToTrayBox.IsChecked = _settings.CloseToTray;
-            AutoScanBox.IsChecked = _settings.AutoScanOnStart;
             SelectLanguage(_settings.UiLanguage);
         }
         finally
@@ -56,19 +55,6 @@ public partial class SettingsPage : UserControl
             Strings.Settings_CloseToTraySavedFormat,
             Strings.Settings_EffectiveHint,
             _settings.CloseToTray ? Strings.Common_Yes : Strings.Common_No);
-        SavedText.Opacity = 0.65;
-    }
-
-    private void OnAutoScanChanged(object sender, RoutedEventArgs e)
-    {
-        if (_loading)
-        {
-            return;
-        }
-
-        _settings.AutoScanOnStart = AutoScanBox.IsChecked == true;
-        _settings.Save();
-        SavedText.Text = Strings.Settings_EffectiveHint;
         SavedText.Opacity = 0.65;
     }
 

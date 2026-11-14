@@ -812,15 +812,6 @@
   <data name="Settings_VolumeHintOff" xml:space="preserve">
     <value>当前：电脑侧按下面的滑杆走，关掉这个开关后手机音量仍会叠加在上面。</value>
   </data>
-  <data name="Settings_Section_Startup" xml:space="preserve">
-    <value>启动与扫描</value>
-  </data>
-  <data name="Settings_AutoScan" xml:space="preserve">
-    <value>启动后自动扫描局域网设备</value>
-  </data>
-  <data name="Settings_AutoScanHint" xml:space="preserve">
-    <value>关掉的话，打开软件不会自动找手机，需要手动点上方［扫描］。</value>
-  </data>
   <data name="Settings_Section_Data" xml:space="preserve">
     <value>本机数据</value>
   </data>
@@ -956,5 +947,38 @@
   </data>
   <data name="About_LicenseBody" xml:space="preserve">
     <value>本项目以 MIT 许可开源。视频解码使用 FFmpeg（LGPL 2.1 及以上，动态链接、可替换）；界面框架 WPF-UI、托盘组件 H.NotifyIcon、更新组件 Velopack 均为 MIT 许可。</value>
+  </data>
+  <data name="Settings_SwipeFast" xml:space="preserve">
+    <value>快速甩动（视频/短剧类应用更跟手）</value>
+  </data>
+  <data name="Settings_SwipeFastHint" xml:space="preserve">
+    <value>部分应用要滑得足够快才认「翻集/切视频」。开启后拖动帧间隔从 16 ms 压到 8 ms，抬手前的甩动位移从 8% 提到 18%。</value>
+  </data>
+  <data name="Settings_NativeApps" xml:space="preserve">
+    <value>应用专属滑动（改用系统原生 swipe）</value>
+  </data>
+  <data name="Settings_NativeAppsHint" xml:space="preserve">
+    <value>填包名，逗号分隔。这些应用里的拖动会改发一条系统原生滑动（带真实速度），适合「只有滑得够快才翻集」的视频/短剧类应用；留空则全部用流式触摸。</value>
+  </data>
+  <data name="Settings_NativeAppsUseCurrent" xml:space="preserve">
+    <value>填入当前前台应用</value>
+  </data>
+  <data name="Settings_ForegroundApp" xml:space="preserve">
+    <value>当前前台应用</value>
+  </data>
+  <data name="Settings_ForegroundAppHint" xml:space="preserve">
+    <value>手机当前正在用的应用。点「填入当前前台应用」把它加进下面的专属滑动名单；名单里每条都能单独删掉。</value>
+  </data>
+  <data name="Settings_ForegroundAppUnknown" xml:space="preserve">
+    <value>还没读到（请先连接手机，或切到要加的应用再回来）</value>
+  </data>
+  <data name="Settings_ForegroundAppRefresh" xml:space="preserve">
+    <value>重新读取</value>
+  </data>
+  <data name="Settings_ForegroundAppBusy" xml:space="preserve">
+    <value>正在读取…</value>
+  </data>
+  <data name="Settings_NativeAppsRemove" xml:space="preserve">
+    <value>删除</value>
   </data>
 </root>

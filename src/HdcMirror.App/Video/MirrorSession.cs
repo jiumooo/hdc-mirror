@@ -311,7 +311,7 @@ internal sealed class MirrorSession : IDisposable
                     // 所以分辨率固定为手机原生，画质百分比改为按比例下调编码码率（100% = 设置里的码率上限）。
                     Scale = 1d,
                     FrameRate = requestedRate,
-                    BitRate = Math.Max(1_000_000, AppSettings.Current.EffectiveBitRate),
+                    BitRate = EffectiveBitRateForQuality(),
                 },
                 _log);
 
@@ -405,7 +405,7 @@ internal sealed class MirrorSession : IDisposable
                             _decodeMsSum / 120d,
                             _decodeMsMax,
                             _requestedFrameRate,
-                            AppSettings.Current.EffectiveBitRate / 1_000_000d));
+                            EffectiveBitRateForQuality() / 1_000_000d));
                         _decodeMsSum = 0;
                         _decodeMsMax = 0;
                         _decodeStatsStart = _clock.ElapsedMilliseconds;
@@ -517,6 +517,22 @@ internal sealed class MirrorSession : IDisposable
 
         _decoder?.Dispose();
         _decoder = null;
+    }
+
+    /// <summary>
+    /// 按「画质百分比」折算实际下发的编码码率。
+    /// 华为 daemon 的 -scale 只接受 1，分辨率恒为手机原生，所以清晰度只能靠码率调：
+    /// 设置里的码率是上限，QualityPercent 是百分比（100 = 用满上限）。
+    /// </summary>
+    private static int EffectiveBitRateForQuality()
+    {
+        var ceiling = AppSettings.Current.EffectiveBitRate;
+        var percent = Math.Clamp(AppSettings.Current.QualityPercent, 10, 100);
+
+        // 必须用 long 算：24 Mbps 时 ceiling 已经是 25,165,824，再乘 100 会溢出 int（变负数），
+        // 结果被下面的兜底抬成 1 Mbps，画面反而更糊。
+        long scaled = (long)ceiling * percent / 100L;
+        return (int)Math.Max(1_000_000L, scaled);
     }
 
     /// <summary>
