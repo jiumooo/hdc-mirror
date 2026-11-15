@@ -1,8 +1,6 @@
-﻿# 鸿蒙手机无线控制 · HdcMirror
-
-在 Windows 上实时镜像并操控 HarmonyOS NEXT 手机。手机端**零安装**，只用系统自带的 hdc 无线调试。
-
-当前版本 **0.2.3** · Windows 10/11 · .NET 8 桌面运行时
+﻿<p align="center">
+  <img src="docs/assets/social-preview.png" alt="HdcMirror — 在 Windows 上实时镜像并操控 HarmonyOS NEXT 手机，手机端零安装" width="100%">
+</p>
 
 ---
 
