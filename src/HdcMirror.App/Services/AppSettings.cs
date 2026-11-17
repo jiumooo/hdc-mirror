@@ -30,8 +30,11 @@ public sealed class AppSettings
     /// <summary>
     /// 这些应用改用「系统原生滑动」（uitest uiInput swipe）而不是流式触摸。
     /// 逗号分隔包名；<c>*</c> 表示所有应用。视频/短剧类应用用流式触摸常被判定为「不是甩动」。
+    /// 默认空：不再预置任何包名，名单里出现的每一行都必须是用户自己加的。
+    /// （0.2.3 及以前默认塞了 <c>com.kylin.read</c>，该包多数机器上根本没装，
+    /// 名单里会多出一行既查不到应用名、删掉也毫无损失的幽灵条目。）
     /// </summary>
-    public string SwipeNativeApps { get; set; } = "com.kylin.read";
+    public string SwipeNativeApps { get; set; } = string.Empty;
 
     /// <summary>手动强制：拖动与滚轮一律用甩动/翻页注入，不看前台应用（前台检测在某些机型上不可靠）。</summary>
     public bool ForceFlingWheel { get; set; }

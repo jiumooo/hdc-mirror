@@ -24,6 +24,9 @@ public partial class VideoPage : UserControl
     /// <summary>最近一次读到的前台应用；还没读过是 null。</summary>
     private ForegroundApp? _foreground;
 
+    /// <summary>包名 → 应用名缓存；空串表示查过但没查到，避免每次重画都去问手机。</summary>
+    private readonly Dictionary<string, string> _appLabels = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>初始化画面页，并把当前配置回填到控件。</summary>
     public VideoPage()
     {
@@ -289,13 +292,15 @@ public partial class VideoPage : UserControl
 
             var text = new TextBlock
             {
-                Text = package,
+                Text = DisplayTextFor(package),
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             };
             Grid.SetColumn(text, 0);
             row.Children.Add(text);
+
+            _ = FillAppLabelAsync(package, text);
 
             var remove = new Wpf.Ui.Controls.Button
             {
@@ -311,6 +316,39 @@ public partial class VideoPage : UserControl
 
             NativeAppsList.Children.Add(row);
         }
+    }
+
+    /// <summary>列表一行的展示文字：应用名在前、包名放括号里，便于一眼认出是哪个 App；查不到就只显示包名。</summary>
+    private string DisplayTextFor(string package)
+    {
+        if (_appLabels.TryGetValue(package, out string? label) && label.Length > 0)
+        {
+            return label + "（" + package + "）";
+        }
+
+        return package;
+    }
+
+    /// <summary>异步补上应用名；查不到就保留包名，不打扰界面。</summary>
+    private async Task FillAppLabelAsync(string package, TextBlock target)
+    {
+        if (_appLabels.ContainsKey(package))
+        {
+            return;
+        }
+
+        string label;
+        try
+        {
+            label = await ForegroundAppProbe.ReadLabelForPackageAsync(package, new FileLogSink()).ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            label = string.Empty;
+        }
+
+        _appLabels[package] = label;
+        target.Text = DisplayTextFor(package);
     }
 
     /// <summary>重新读一次手机当前前台应用，把包名与应用名显示出来。</summary>
@@ -331,7 +369,7 @@ public partial class VideoPage : UserControl
         AddNativeApp(_foreground.Package);
         SavedText.Text = string.Format(
             CultureInfo.CurrentCulture,
-            Strings.Settings_EffectiveSummaryFormat,
+            Strings.Settings_SavedFormat,
             Strings.Settings_NativeApps,
             _foreground.Display);
         SavedText.Opacity = 1;
@@ -373,7 +411,7 @@ public partial class VideoPage : UserControl
 
         _settings.SwipeFastMode = SwipeFastBox.IsChecked == true;
         _settings.Save();
-        SavedText.Text = string.Format(Strings.Settings_EffectiveSummaryFormat, Strings.Settings_SwipeFast, _settings.SwipeFastMode ? Strings.Common_Yes : Strings.Common_No);
+        SavedText.Text = string.Format(Strings.Settings_SavedFormat, Strings.Settings_SwipeFast, _settings.SwipeFastMode ? Strings.Common_Yes : Strings.Common_No);
         SavedText.Opacity = 1;
     }
 

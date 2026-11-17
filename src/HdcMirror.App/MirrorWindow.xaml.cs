@@ -301,6 +301,9 @@ public partial class MirrorWindow
     /// <summary>页面覆盖层是否打开（虚拟屏缩小状态）。</summary>
     private bool _overlayOpen;
 
+    /// <summary>覆盖层上次停留的页签（devices / general / keys / video / audio），再点「设置」回到这一页。</summary>
+    private string _lastOverlayTab = "general";
+
     /// <summary>覆盖层打开前虚拟屏的宽度（DIP）。</summary>
     private double _screenRestoreWidth;
 
@@ -1207,7 +1210,7 @@ public partial class MirrorWindow
 
     private void OnDevicesPageClick(object sender, RoutedEventArgs e) => OpenOverlayTab("devices");
 
-    private void OnSettingsPageClick(object sender, RoutedEventArgs e) => OpenOverlayTab("general");
+    private void OnSettingsPageClick(object sender, RoutedEventArgs e) => OpenOverlayTab(_lastOverlayTab);
 
     private void OnOverlayCloseClick(object sender, RoutedEventArgs e) => ClosePageOverlay();
 
@@ -1345,6 +1348,9 @@ public partial class MirrorWindow
                 title = Strings.Menu_Settings_Devices;
                 break;
         }
+
+        // 记住这一页：关掉覆盖层回画面后再点「设置」，要回到刚才那一栏，而不是每次都跳回通用设置。
+        _lastOverlayTab = key;
 
         UpdateOverlayTabs(key);
         OpenPageOverlay(title, page);
@@ -3041,27 +3047,56 @@ public partial class MirrorWindow
         {
             try
             {
-                var result = await runner.ShellAsync("aa dump -a", CancellationToken.None).ConfigureAwait(false);
-                string? topPkg = ExtractTopMissionPackage(result.CombinedOutput);
+                var result = await runner.ShellAsync("aa dump -r", CancellationToken.None).ConfigureAwait(false);
+                // 前台包名走进程级：aa dump -r 的输出里没有 mission 列表（实测 mission name 出现 0 次），
+                // 只有 process name + state #FOREGROUND。
+                string? topPkg = ForegroundAppProbe.ExtractForegroundPackage(result.CombinedOutput);
+
+                // 进程级读不出来时，再问 mission 列表（aa dump -a）。
+                // 实测：屏幕上正播着快应用 com.kylin.read，aa dump -r 的 43 个进程里连 BACKGROUND
+                // 都没有它（快应用跑在容器里，不占自己的进程条目），只有 aa dump -a 的 mission
+                // 显示它 state #FOREGROUND。少了这条路，快应用里滚轮会被当成桌面去翻页。
+                bool missionProbed = false;
+                if (string.IsNullOrEmpty(topPkg))
+                {
+                    topPkg = await ForegroundAppProbe.ProbeMissionBundleAsync(runner, _log, CancellationToken.None).ConfigureAwait(false);
+                    missionProbed = !string.IsNullOrEmpty(topPkg);
+                }
+
                 if (!string.IsNullOrEmpty(topPkg))
                 {
+                    if (!string.Equals(_foregroundPackage, topPkg, StringComparison.Ordinal))
+                    {
+                        _log.Info("input", $"前台包名：{topPkg}");
+                    }
+
                     _foregroundPackage = topPkg;
                     _foregroundStamp = Environment.TickCount64;
                 }
 
-                // 桌面判据必须走「进程级 state」，不能走 mission 列表。
-                // 实测（HarmonyOS NEXT）：人已经在桌面时，current mission lists 里仍然留着上一次用过的应用
-                // （比如 com.kylin.read），而该应用的进程早就没了；只有 com.ohos.sceneboard 等系统壳进程是
-                // state #FOREGROUND。所以按 mission 判前台会一直判成「在应用里」，桌面上滚轮永远只能上下滑。
-                // 现在改成：优先用进程级（DetectLauncher），mission 只作为进程列表读不出来时的兜底。
+                // 桌面判据必须走「进程级 state」，不能只走 mission 列表。
+                // 实测（HarmonyOS NEXT）两态对照：
+                //   桌面：aa dump -a 里没有任何 mission 是 FOREGROUND（最多一条 ACTIVE），
+                //         aa dump -r 的 FOREGROUND 只有 com.ohos.sceneboard 等系统壳；
+                //   快应用在屏：mission 里恰好一条 FOREGROUND（com.kylin.read），进程级只有系统壳。
+                // 所以：进程级看到真实应用 = 在应用里；进程级只有系统壳时，再用 mission 确认一次
+                // （mission 也没有 = 桌面，有 = 快应用在屏，不能去翻页）。
                 bool? detected = DetectLauncher(result.CombinedOutput);
-                if (detected is null && !string.IsNullOrEmpty(topPkg))
+                if (missionProbed)
+                {
+                    // mission 说屏幕上是真实应用：进程级看不见它只是因为它是快应用 / 元服务，
+                    // 不能据此判成桌面，否则在应用里滚轮会被拿去翻页。
+                    detected = false;
+                }
+                else if (detected is null && !string.IsNullOrEmpty(topPkg))
                 {
                     detected = IsShellProcess(topPkg);
                 }
                 if (detected is null)
                 {
-                    NoteLauncherProbeFailed("输出里没有前台状态");
+                    // 带上输出长度：0 字符说明 hdc shell 没回任何内容（多为连接已断），
+                    // 有内容却仍判不出才是解析规则问题。两者混在一起会误导排查。
+                    NoteLauncherProbeFailed($"输出里没有前台状态（输出 {result.CombinedOutput.Length} 字符）");
                     return;
                 }
 
@@ -3094,33 +3129,6 @@ public partial class MirrorWindow
     /// </summary>
     /// <param name="output">命令输出。</param>
     /// <returns>true = 桌面；false = 有真实应用在前台；null = 读不出前台状态。</returns>
-    /// <summary>取 aa dump -a 里 current mission lists 中 state #FOREGROUND 的 mission 包名（当前前台应用）。</summary>
-    private static string? ExtractTopMissionPackage(string? output)
-    {
-        if (string.IsNullOrEmpty(output))
-        {
-            return null;
-        }
-
-        string? currentPkg = null;
-        foreach (string raw in output.Split('\n'))
-        {
-            string line = raw.Trim();
-            if (line.StartsWith("state #FOREGROUND", StringComparison.Ordinal))
-            {
-                return currentPkg;
-            }
-
-            Match match = Regex.Match(line, @"mission name #\[#([A-Za-z0-9_.]+):");
-            if (match.Success)
-            {
-                currentPkg = match.Groups[1].Value;
-            }
-        }
-
-        return null;
-    }
-
     /// <summary>当前前台是否命中「应用专属滑动」名单（只认 5 秒内采集的包名，避免沿用上一个应用）。</summary>
     private bool NativeSwipeForForeground()
     {
@@ -3371,7 +3379,8 @@ public partial class MirrorWindow
         {
             if (string.Equals(binding.Gesture, gesture, StringComparison.OrdinalIgnoreCase))
             {
-                action = binding.Action;
+                // 老版本设置里存的是「主屏幕」这类显示名，归一成 id 后才能真正执行。
+                action = KeyActions.Normalize(binding.Action);
                 return true;
             }
         }

@@ -812,7 +812,12 @@ This removes the saved entry on this PC and drops the current connection. Nothin
   </data>
   <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
     <value>{0}: frame rate {1} · bitrate {2} Mbps</value>
-  </data>  <data name="Menu_Settings_Video" xml:space="preserve">
+  </data>
+  <data name="Settings_SavedFormat" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>Generic status line after a setting changes, {0}=setting name, {1}=new value</comment>
+  </data>
+  <data name="Menu_Settings_Video" xml:space="preserve">
     <value>Video</value>
   </data>
   <data name="Menu_Settings_Audio" xml:space="preserve">

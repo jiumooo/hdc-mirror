@@ -738,6 +738,9 @@ public static class Strings
     /// <summary>界面文案 <c>Settings_EffectiveSummaryFormat</c>：{0}：帧率 {1} · 码率 {2} Mbps</summary>
     public static string Settings_EffectiveSummaryFormat => Get(nameof(Settings_EffectiveSummaryFormat));
 
+    /// <summary>界面文案 <c>Settings_SavedFormat</c>：{0}：{1}</summary>
+    public static string Settings_SavedFormat => Get(nameof(Settings_SavedFormat));
+
     public static string About_RepoSection => Get(nameof(About_RepoSection));
     public static string About_RepoUrl => Get(nameof(About_RepoUrl));
     public static string About_RepoUrlHint => Get(nameof(About_RepoUrlHint));

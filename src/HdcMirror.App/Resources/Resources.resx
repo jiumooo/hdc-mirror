@@ -918,7 +918,12 @@
   <data name="Settings_EffectiveSummaryFormat" xml:space="preserve">
     <value>{0}：帧率 {1} · 码率 {2} Mbps</value>
     <comment>音画设置：改动后的状态行，{0}=改动立即保存提示，{1}=帧率，{2}=码率</comment>
-  </data>  <data name="Menu_Settings_Video" xml:space="preserve">
+  </data>
+  <data name="Settings_SavedFormat" xml:space="preserve">
+    <value>{0}：{1}</value>
+    <comment>设置项改动后的状态行通用格式，{0}=设置项名称，{1}=新值</comment>
+  </data>
+  <data name="Menu_Settings_Video" xml:space="preserve">
     <value>画面</value>
   </data>
   <data name="Menu_Settings_Audio" xml:space="preserve">

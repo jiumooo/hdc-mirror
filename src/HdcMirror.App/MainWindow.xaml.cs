@@ -85,6 +85,9 @@ public partial class MainWindow
     /// <summary>设备管理页，首次打开时创建，之后复用。</summary>
     private DeviceManagePage? _managePage;
 
+    /// <summary>已打开的镜像窗口，按设备序列号索引 —— 一台设备只允许一个窗口。</summary>
+    private readonly Dictionary<string, MirrorWindow> _mirrorWindows = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>镜像状态浮层当前显示的内容，避免每帧重复写同一个字符串。</summary>
     private string? _statusShown;
     private DispatcherTimer? _statusTimer;
@@ -1132,6 +1135,21 @@ public partial class MainWindow
         string title = string.IsNullOrWhiteSpace(_lastInfo.Name) ? device.Serial : _lastInfo.Name;
         _store.Remember(device.Serial, title);
 
+        // 一台设备只允许一个镜像窗口：已经开着就把它提到前面，绝不再开第二个。
+        // 每多一个窗口就多一路 hdc port-forward + 一路 gRPC 拉流 + 一路 uitest 输入连接，
+        // 同时开会互相抢设备侧的单例 daemon 与蓝牙音频端点，画面和输入都会崩。
+        string windowKey = string.IsNullOrWhiteSpace(device.Serial) ? title : device.Serial;
+        if (_mirrorWindows.TryGetValue(windowKey, out MirrorWindow? opened))
+        {
+            if (opened.WindowState == WindowState.Minimized)
+            {
+                opened.WindowState = WindowState.Normal;
+            }
+
+            opened.Activate();
+            return;
+        }
+
         // 出生位置永远跟随主窗口此刻的位置与大小 —— 用户要求「我把主窗挪到哪，
         // 手机窗就在哪出现」，所以不再用上次关窗时记下的坐标（那正是跑偏的原因）。
         // 高度由 MirrorWindow 里的 FitWindowToAspect 按手机比例重算，这里只给个初值。
@@ -1149,12 +1167,14 @@ public partial class MainWindow
         };
         window.Closed += (_, _) =>
         {
+            _mirrorWindows.Remove(windowKey);
             Show();
             Activate();
             _managePage?.Refresh();
             ShowStatus(Strings.Status_Mirror_Stopped);
         };
 
+        _mirrorWindows[windowKey] = window;
         Hide();
         window.Show();
     }

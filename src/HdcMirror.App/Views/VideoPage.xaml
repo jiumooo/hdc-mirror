@@ -98,14 +98,17 @@
                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static res:Strings.Settings_NativeApps}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,6,0,0" FontSize="12" Opacity="0.7" Text="{x:Static res:Strings.Settings_NativeAppsHint}" TextWrapping="Wrap" />
 
-                    <TextBox x:Name="NativeAppsBox" Margin="0,12,0,0" MinHeight="36" LostFocus="OnNativeAppsCommit" VerticalContentAlignment="Center" />
+                    <!--  手填原始名单：名单已改成逐行显示 + 删除按钮，这一格不再对用户展示（保留控件，代码仍在写它）  -->
+                    <TextBox x:Name="NativeAppsBox" Visibility="Collapsed" Margin="0,12,0,0" MinHeight="36" LostFocus="OnNativeAppsCommit" VerticalContentAlignment="Center" />
 
                     <!--  名单逐行显示，每行带删除按钮  -->
                     <StackPanel x:Name="NativeAppsList" Margin="0,8,0,0" />
 
-                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                    <!--  这一行整行隐藏：下方「当前前台应用」卡片已有同名按钮，这里重复一个只会让人点错  -->
+                    <StackPanel Visibility="Collapsed" Margin="0,10,0,0" Orientation="Horizontal">
                         <ui:Button MinHeight="32" Click="OnNativeAppsUseCurrent" Content="{x:Static res:Strings.Settings_NativeAppsUseCurrent}" />
-                        <TextBlock x:Name="NativeAppsText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
+                        <!--  名单已经在上面逐行显示，这里不再重复一遍逗号串（控件保留，代码仍在写它）  -->
+                        <TextBlock x:Name="NativeAppsText" Visibility="Collapsed" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -59,7 +59,10 @@ public partial class KeysPage : UserControl
         foreach (RowWidgets row in _rows)
         {
             string gesture = row.Gesture.Text.Trim();
-            string action = row.Action.SelectedItem as string ?? KeyActions.Back;
+            // 下拉框里放的是本地化显示名，设置里必须存英文 id —— 执行侧是按 id 比较的。
+            string action = row.Action.SelectedIndex >= 0 && row.Action.SelectedIndex < KeyActions.All.Count
+                ? KeyActions.All[row.Action.SelectedIndex]
+                : KeyActions.Normalize(row.Action.SelectedItem as string ?? KeyActions.Back);
             if (gesture.Length == 0)
             {
                 continue;
@@ -158,7 +161,7 @@ public partial class KeysPage : UserControl
         var labels = new List<string>(KeyActions.All.Count);
         foreach (string id in KeyActions.All)
         {
-            labels.Add(Label(id));
+            labels.Add(KeyActions.Label(id));
         }
 
         return labels;
@@ -166,9 +169,11 @@ public partial class KeysPage : UserControl
 
     private static int IndexOfAction(string action)
     {
+        // 老版本存的是「主屏幕」这类显示名，先翻译回 id 再定位，否则下拉框会空着。
+        string normalized = KeyActions.Normalize(action);
         for (int i = 0; i < KeyActions.All.Count; i++)
         {
-            if (string.Equals(KeyActions.All[i], action, StringComparison.Ordinal))
+            if (string.Equals(KeyActions.All[i], normalized, StringComparison.Ordinal))
             {
                 return i;
             }
@@ -176,22 +181,4 @@ public partial class KeysPage : UserControl
 
         return 0;
     }
-
-    private static string Label(string id) => id switch
-    {
-        KeyActions.Home => Strings.KeyAct_Home,
-        KeyActions.Back => Strings.KeyAct_Back,
-        KeyActions.Recent => Strings.KeyAct_Recent,
-        KeyActions.Power => Strings.KeyAct_Power,
-        KeyActions.VolumeUp => Strings.KeyAct_VolumeUp,
-        KeyActions.VolumeDown => Strings.KeyAct_VolumeDown,
-        KeyActions.Enter => Strings.KeyAct_Enter,
-        KeyActions.Backspace => Strings.KeyAct_Backspace,
-        KeyActions.Tab => Strings.KeyAct_Tab,
-        KeyActions.Up => Strings.KeyAct_Up,
-        KeyActions.Down => Strings.KeyAct_Down,
-        KeyActions.Left => Strings.KeyAct_Left,
-        KeyActions.Right => Strings.KeyAct_Right,
-        _ => id,
-    };
 }

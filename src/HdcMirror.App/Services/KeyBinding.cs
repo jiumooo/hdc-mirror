@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using HdcMirror.App.Resources;
 
 namespace HdcMirror.App.Services;
 
@@ -110,5 +111,58 @@ public static class KeyActions
 
         parts.Add(key.ToString());
         return string.Join("+", parts);
+    }
+
+    /// <summary>动作在设置页下拉框里显示的文字；未收录的 id 原样返回。</summary>
+    public static string Label(string id) => id switch
+    {
+        Home => Strings.KeyAct_Home,
+        Back => Strings.KeyAct_Back,
+        Recent => Strings.KeyAct_Recent,
+        Power => Strings.KeyAct_Power,
+        VolumeUp => Strings.KeyAct_VolumeUp,
+        VolumeDown => Strings.KeyAct_VolumeDown,
+        Enter => Strings.KeyAct_Enter,
+        Backspace => Strings.KeyAct_Backspace,
+        Tab => Strings.KeyAct_Tab,
+        Up => Strings.KeyAct_Up,
+        Down => Strings.KeyAct_Down,
+        Left => Strings.KeyAct_Left,
+        Right => Strings.KeyAct_Right,
+        _ => id,
+    };
+
+    /// <summary>
+    /// 把设置里存的动作串归一成动作 id（英文标识）。
+    /// <para>
+    /// 0.2.3 及以前的设置页把下拉框的**显示名**原样存进了 settings.json（例如「主屏幕」），
+    /// 而执行侧按英文 id 比较，于是历史映射一条都不生效、且静默无提示。
+    /// 这里把历史值翻译回 id，老配置不需要重新编辑即可生效。
+    /// </para>
+    /// </summary>
+    public static string Normalize(string action)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            return Back;
+        }
+
+        foreach (string id in All)
+        {
+            if (string.Equals(id, action, StringComparison.Ordinal))
+            {
+                return id;
+            }
+        }
+
+        foreach (string id in All)
+        {
+            if (string.Equals(Label(id), action, StringComparison.Ordinal))
+            {
+                return id;
+            }
+        }
+
+        return action;
     }
 }
